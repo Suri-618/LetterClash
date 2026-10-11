@@ -6,6 +6,8 @@ const cors = require("cors");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const { connectDB } = require("./db");
+const Player = require("./models/Player");
+const Match = require("./models/Match");
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -46,6 +48,37 @@ function generateRoomCode() {
   } while (rooms.has(code));
 
   return code;
+}
+
+async function getOrCreatePlayerProfile(name) {
+  const username = name.trim();
+  const usernameKey = username.toLowerCase();
+
+  try {
+    return await Player.findOneAndUpdate(
+      { usernameKey },
+      {
+        $setOnInsert: {
+          username,
+          usernameKey,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+      }
+    );
+  } catch (error) {
+    // Another connection may have created this username
+    // at the same time. Try retrieving the existing profile.
+    if (error.code === 11000) {
+      const existing = await Player.findOne({ usernameKey });
+      if (existing) return existing;
+    }
+
+    throw error;
+  }
 }
 
 function getRoomPlayers(room) {
@@ -145,6 +178,10 @@ function startBattle(code, socket) {
 
   clearRoomTimer(room);
 
+  room.matchNumber += 1;
+  room.matchSaved = false;
+  room.matchSaving = false;
+
   room.players.forEach((player) => {
     player.hp = STARTING_HP;
   });
@@ -224,6 +261,92 @@ function calculateDamage(reactionTimeMs) {
   return 10;
 }
 
+async function saveCompletedMatch(code, room) {
+  if (
+    room.matchSaved ||
+    room.matchSaving ||
+    room.phase !== "finished" ||
+    !room.winnerId ||
+    room.players.length !== 2
+  ) {
+    return;
+  }
+
+  const winner = room.players.find(
+    (player) => player.id === room.winnerId
+  );
+
+  if (!winner?.profileId) {
+    console.error("Cannot save match: winner profile is missing.");
+    return;
+  }
+
+  if (room.players.some((player) => !player.profileId)) {
+    console.error("Cannot save match: player profile is missing.");
+    return;
+  }
+
+  room.matchSaving = true;
+
+  const session = await Match.startSession();
+
+  try {
+    const matchKey = `${room.code}:${room.matchNumber}`;
+
+    const matchDocument = {
+      matchKey,
+      roomCode: room.code,
+
+      players: room.players.map((player) => ({
+        playerId: player.profileId,
+        username: player.name,
+        finalHP: player.hp,
+      })),
+
+      winnerId: winner.profileId,
+      winnerUsername: winner.name,
+      completedAt: new Date(),
+    };
+
+    // Save the match and update both profiles atomically.
+    // MongoDB Atlas supports transactions on replica sets.
+    await session.withTransaction(async () => {
+      await Match.create([matchDocument], { session });
+
+      for (const player of room.players) {
+        await Player.updateOne(
+          { _id: player.profileId },
+          {
+            $inc: {
+              matchesPlayed: 1,
+              ...(player.id === winner.id
+                ? { wins: 1 }
+                : { losses: 1 }),
+            },
+          },
+          { session }
+        );
+      }
+    });
+
+    room.matchSaved = true;
+
+    console.log(`Saved completed match ${matchKey}`);
+  } catch (error) {
+    if (error.code === 11000) {
+      // The unique matchKey already exists, so don't
+      // increment statistics for the same match again.
+      room.matchSaved = true;
+      console.log("Match already saved; skipping duplicate.");
+    } else {
+      console.error("Failed to save completed match:", error.message);
+    }
+  } finally {
+    await session.endSession();
+    room.matchSaving = false;
+  }
+}
+
 function submitLetter(socket, payload = {}) {
   const membership = getPlayerRoom(socket);
 
@@ -288,7 +411,11 @@ function submitLetter(socket, payload = {}) {
   if (defender.hp <= 0) {
     room.phase = "finished";
     room.winnerId = attacker.id;
+
     sendRoomUpdate(code);
+
+    void saveCompletedMatch(code, room);
+
     return;
   }
 
@@ -306,10 +433,69 @@ app.get("/", (req, res) => {
   res.send("Letter Clash battle server is running!");
 });
 
+app.get("/api/leaderboard", async (req, res) => {
+  try {
+    const players = await Player.find({})
+      .select("username wins losses matchesPlayed rating")
+      .sort({ rating: -1, wins: -1 })
+      .limit(50)
+      .lean();
+
+    res.json({ players });
+  } catch (error) {
+    console.error("Leaderboard error:", error.message);
+    res.status(500).json({ error: "Could not load leaderboard." });
+  }
+});
+
+app.get("/api/players/:username", async (req, res) => {
+  try {
+    const usernameKey = req.params.username.trim().toLowerCase();
+
+    const player = await Player.findOne({ usernameKey })
+      .select("username wins losses matchesPlayed rating createdAt")
+      .lean();
+
+    if (!player) {
+      return res.status(404).json({ error: "Player not found." });
+    }
+
+    res.json({ player });
+  } catch (error) {
+    console.error("Player lookup error:", error.message);
+    res.status(500).json({ error: "Could not load player profile." });
+  }
+});
+
+app.get("/api/players/:username/matches", async (req, res) => {
+  try {
+    const usernameKey = req.params.username.trim().toLowerCase();
+
+    const player = await Player.findOne({ usernameKey }).select("_id");
+
+    if (!player) {
+      return res.status(404).json({ error: "Player not found." });
+    }
+
+    const matches = await Match.find({
+      "players.playerId": player._id,
+    })
+      .select("roomCode players winnerId winnerUsername completedAt")
+      .sort({ completedAt: -1 })
+      .limit(20)
+      .lean();
+
+    res.json({ matches });
+  } catch (error) {
+    console.error("Match history error:", error.message);
+    res.status(500).json({ error: "Could not load match history." });
+  }
+});
+
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
-  socket.on("create-room", ({ name } = {}, callback = () => {}) => {
+  socket.on("create-room", async ({ name } = {}, callback = () => {}) => {
     if (playerRooms.has(socket.id)) {
       return callback({
         ok: false,
@@ -320,19 +506,42 @@ io.on("connection", (socket) => {
     const playerName =
       typeof name === "string" ? name.trim().slice(0, 16) : "";
 
-    if (!playerName) {
-      return callback({ ok: false, error: "Enter a player name." });
+    if (playerName.length < 3) {
+      return callback({
+        ok: false,
+        error: "Username must be at least 3 characters.",
+      });
+    }
+
+    let profile;
+
+    try {
+      profile = await getOrCreatePlayerProfile(playerName);
+    } catch (error) {
+      console.error("Player profile error:", error.message);
+      return callback({
+        ok: false,
+        error: "Could not create your player profile. Try again.",
+      });
     }
 
     const code = generateRoomCode();
 
     const room = {
       code,
-      players: [{ id: socket.id, name: playerName, hp: STARTING_HP }],
+      players: [{
+        id: socket.id,
+        profileId: profile._id,
+        name: profile.username,
+        hp: STARTING_HP,
+      }],
       phase: "waiting",
       countdownEndsAt: null,
       currentRound: null,
       roundCounter: 0,
+      matchNumber: 0,
+      matchSaved: false,
+      matchSaving: false,
       lastResult: null,
       winnerId: null,
       timer: null,
@@ -348,7 +557,7 @@ io.on("connection", (socket) => {
     console.log(`${playerName} created room ${code}`);
   });
 
-  socket.on("join-room", ({ code, name } = {}, callback = () => {}) => {
+  socket.on("join-room", async ({ code, name } = {}, callback = () => {}) => {
     if (playerRooms.has(socket.id)) {
       return callback({
         ok: false,
@@ -379,9 +588,38 @@ io.on("connection", (socket) => {
       return callback({ ok: false, error: "This room is already full." });
     }
 
+    if (playerName.length < 3) {
+      return callback({
+        ok: false,
+        error: "Username must be at least 3 characters.",
+      });
+    }
+
+    let profile;
+
+    try {
+      profile = await getOrCreatePlayerProfile(playerName);
+    } catch (error) {
+      console.error("Player profile error:", error.message);
+      return callback({
+        ok: false,
+        error: "Could not load your player profile. Try again.",
+      });
+    }
+
+    if (
+      String(room.players[0]?.profileId) === String(profile._id)
+    ) {
+      return callback({
+        ok: false,
+        error: "Choose a different username from the host.",
+      });
+    }
+
     room.players.push({
       id: socket.id,
-      name: playerName,
+      profileId: profile._id,
+      name: profile.username,
       hp: STARTING_HP,
     });
 
