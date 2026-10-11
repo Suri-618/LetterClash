@@ -4,6 +4,9 @@ import { register, login, me as fetchMe } from "./api";
 import { loadAuth, saveAuth, clearAuth, normalizePlayer } from "./auth";
 import Leaderboard from "./Leaderboard";
 import Profile from "./Profile";
+import { useLocation, useNavigate, Navigate } from "react-router-dom";
+import LandingPage from "./LandingPage";
+import AuthPage from "./AuthPage";
 import {
   enableAudio,
   playHit,
@@ -38,7 +41,10 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [profileUsername, setProfileUsername] = useState("");
+  const [activeTab, setActiveTab] = useState("play");
   const previousPhaseRef = useRef(null);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onConnect = () => {
@@ -194,6 +200,8 @@ export default function App() {
       socket.disconnect();
       socket.connect();
     }
+
+    navigate("/game");
   }
 
   function handleLogout() {
@@ -386,6 +394,33 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [room?.phase]);
 
+  if (location.pathname === "/") {
+    return <LandingPage />;
+  }
+
+  if (location.pathname === "/auth") {
+    return (
+      <AuthPage
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        authUsername={authUsername}
+        setAuthUsername={setAuthUsername}
+        authEmail={authEmail}
+        setAuthEmail={setAuthEmail}
+        authPassword={authPassword}
+        setAuthPassword={setAuthPassword}
+        authBusy={authBusy}
+        authError={authError}
+        submitAuth={submitAuth}
+        onBack={() => navigate("/")}
+      />
+    );
+  }
+
+  if (location.pathname !== "/game") {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -393,6 +428,38 @@ export default function App() {
           <span className="brand-icon">⚔</span>
           LETTER<span>CLASH</span>
         </a>
+        <nav className="dashboard-nav">
+          <button
+            type="button"
+            className={activeTab === "play" ? "active" : ""}
+            onClick={() => setActiveTab("play")}
+          >
+            Play
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "leaderboard" ? "active" : ""}
+            onClick={() => setActiveTab("leaderboard")}
+          >
+            Leaderboard
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "profile" ? "active" : ""}
+            onClick={() => {
+              if (account) {
+                setActiveTab("profile");
+                setProfileUsername(account.username);
+              } else {
+                navigate("/auth");
+              }
+            }}
+          >
+            My Profile
+          </button>
+        </nav>
         <div className="topbar-meta">
           <div className="connection">
             <span className={`dot ${connected ? "online" : ""}`} />
@@ -456,15 +523,7 @@ export default function App() {
 
       {!room ? (
         <>
-        {auth?.player?.username && (
-          <button
-            type="button"
-            className="profile-close"
-            onClick={() => setProfileUsername(auth.player.username)}
-          >
-            MY PROFILE
-          </button>
-        )}
+        {activeTab === "play" && (
         <section className="entry-grid">
           <article className="panel">
             <p className="eyebrow">PLAYER SETUP</p>
@@ -485,83 +544,13 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <div className="auth-block">
-                <div className="auth-tabs">
-                  <button
-                    type="button"
-                    className={`auth-tab ${authMode === "login" ? "active" : ""}`}
-                    onClick={() => {
-                      setAuthMode("login");
-                      setAuthError("");
-                    }}
-                  >
-                    LOG IN
-                  </button>
-                  <button
-                    type="button"
-                    className={`auth-tab ${authMode === "register" ? "active" : ""}`}
-                    onClick={() => {
-                      setAuthMode("register");
-                      setAuthError("");
-                    }}
-                  >
-                    SIGN UP
-                  </button>
-                </div>
-
-                <form className="auth-form" onSubmit={submitAuth}>
-                  {authMode === "register" && (
-                    <>
-                      <label htmlFor="authUsername">USERNAME</label>
-                      <input
-                        id="authUsername"
-                        value={authUsername}
-                        maxLength={16}
-                        placeholder="YourName"
-                        onChange={(e) => setAuthUsername(e.target.value)}
-                      />
-                    </>
-                  )}
-
-                  <label htmlFor="authEmail">EMAIL</label>
-                  <input
-                    id="authEmail"
-                    type="email"
-                    value={authEmail}
-                    placeholder="you@example.com"
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                  />
-
-                  <label htmlFor="authPassword">PASSWORD</label>
-                  <input
-                    id="authPassword"
-                    type="password"
-                    value={authPassword}
-                    placeholder={
-                      authMode === "register" ? "8+ characters" : "Your password"
-                    }
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                  />
-
-                  <button
-                    className="primary-button"
-                    type="submit"
-                    disabled={authBusy}
-                  >
-                    {authBusy
-                      ? "PLEASE WAIT..."
-                      : authMode === "register"
-                        ? "CREATE ACCOUNT"
-                        : "LOG IN"}
-                  </button>
-
-                  {authError && <p className="message">{authError}</p>}
-                </form>
-
-                <div className="separator">
-                  <span>OR PLAY AS A GUEST</span>
-                </div>
-              </div>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => navigate("/auth")}
+              >
+                Login / Sign Up
+              </button>
             )}
 
             {!account && (
@@ -625,15 +614,27 @@ export default function App() {
             </div>
           </aside>
         </section>
-
-        {profileUsername && (
-          <Profile
-            username={profileUsername}
-            onClose={() => setProfileUsername("")}
-          />
         )}
 
-        <Leaderboard onSelectPlayer={setProfileUsername} />
+        {activeTab === "profile" && (
+          account ? (
+            <Profile
+              username={profileUsername || account.username}
+              onClose={() => setActiveTab("play")}
+            />
+          ) : (
+            <p>Please log in to view your profile.</p>
+          )
+        )}
+
+        {activeTab === "leaderboard" && (
+          <Leaderboard
+            onSelectPlayer={(username) => {
+              setProfileUsername(username);
+              setActiveTab("profile");
+            }}
+          />
+        )}
         </>
       ) : (
         <section className="panel battle-panel">

@@ -1633,3 +1633,256 @@ footer {
   color: #67e8f9;
   text-decoration: underline;
 }
+
+/* ===== LANDING PAGE ===== */
+
+.landing-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-login,
+.landing-start {
+  padding: 11px 16px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.landing-login {
+  color: #cbd5e1;
+  border: 1px solid #ffffff25;
+}
+
+.landing-start {
+  color: #06111c;
+  background: #67e8f9;
+}
+
+.landing-login:hover,
+.landing-start:hover {
+  transform: translateY(-2px);
+}
+
+.landing-hero {
+  padding: 90px 20px 70px;
+  text-align: center;
+}
+
+.landing-hero h1 {
+  margin: 20px 0;
+  font: 800 clamp(38px, 7vw, 76px) "Orbitron", sans-serif;
+  line-height: 1.2;
+}
+
+.landing-hero h1 span {
+  color: #67e8f9;
+  text-shadow: 0 0 30px #67e8f930;
+}
+
+.landing-hero .subtitle {
+  max-width: 580px;
+  margin: 0 auto;
+  line-height: 1.9;
+}
+
+.landing-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0 auto 45px;
+}
+
+.landing-features .panel {
+  min-width: 0;
+}
+
+.landing-features h2 {
+  font-size: 15px;
+}
+
+.landing-features p {
+  color: #9ca3b8;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+@media (max-width: 650px) {
+  .landing-nav {
+    gap: 7px;
+  }
+
+  .landing-login,
+  .landing-start {
+    padding: 10px;
+    font-size: 9px;
+  }
+
+  .landing-hero {
+    padding: 65px 10px 45px;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Separate authentication page */
+
+.auth-page {
+  min-height: 100vh;
+  padding: 28px 6%;
+  background:
+    radial-gradient(circle at 50% 30%, #172554 0%, transparent 45%),
+    #080b14;
+  color: #f8fafc;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+  margin: 55px auto;
+  padding: 32px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.3);
+}
+
+.auth-card h1 {
+  margin: 18px 0 8px;
+}
+
+.auth-card > p {
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.auth-card label {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #f8fafc;
+  font: inherit;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.auth-tabs button {
+  flex: 1;
+  padding: 11px;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.auth-tabs button.active {
+  background: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+}
+
+.auth-submit {
+  margin-top: 12px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #8b5cf6;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.auth-error {
+  color: #f87171;
+  font-size: 0.9rem;
+}
+
+.dashboard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-nav button {
+  padding: 10px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dashboard-nav button:hover,
+.dashboard-nav button.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .dashboard-nav {
+    width: 100%;
+  }
+
+  .dashboard-nav button {
+    flex: 1;
+    padding: 9px 10px;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 82px;
+    padding-bottom: 10px;
+    gap: 10px;
+  }
+}
