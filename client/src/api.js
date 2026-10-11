@@ -53,3 +53,13 @@ export function me(token) {
 export function getLeaderboard() {
   return request("/api/leaderboard");
 }
+
+export function getPlayerProfile(username) {
+  return request(`/api/players/${encodeURIComponent(username)}`);
+}
+
+export function getPlayerMatches(username) {
+  return request(
+    `/api/players/${encodeURIComponent(username)}/matches`
+  );
+}

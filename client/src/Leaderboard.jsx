@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getLeaderboard } from "./api";
 
-export default function Leaderboard() {
+export default function Leaderboard({ onSelectPlayer }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -99,7 +99,13 @@ export default function Leaderboard() {
                     </span>
                   </td>
                   <td className="leaderboard-fighter">
-                    {player.username}
+                    <button
+                      type="button"
+                      className="profile-player-link"
+                      onClick={() => onSelectPlayer?.(player.username)}
+                    >
+                      {player.username}
+                    </button>
                   </td>
                   <td className="leaderboard-rating">
                     {player.rating ?? 1000}

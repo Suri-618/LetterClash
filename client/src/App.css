@@ -1397,3 +1397,239 @@ footer {
     padding: 13px 11px;
   }
 }
+
+/* ===== PLAYER PROFILE ===== */
+.profile-panel {
+  margin: 28px auto;
+  padding: 26px;
+  border: 1px solid #ffffff17;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 100% 0%, #41307135, transparent 50%),
+    linear-gradient(145deg, #15172aee, #0e1020ee);
+  box-shadow: 0 22px 70px #00000020;
+}
+
+.profile-heading,
+.profile-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.profile-eyebrow {
+  color: #a78bfa;
+  font: 600 10px "Orbitron", sans-serif;
+  letter-spacing: 2px;
+}
+
+.profile-heading h2 {
+  margin: 9px 0 22px;
+  font: 700 clamp(20px, 4vw, 27px) "Orbitron", sans-serif;
+}
+
+.profile-close {
+  padding: 10px 14px;
+  border: 1px solid #67e8f950;
+  border-radius: 9px;
+  background: #67e8f910;
+  color: #67e8f9;
+  cursor: pointer;
+  font: 700 10px "Orbitron", sans-serif;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  margin-bottom: 18px;
+  border: 1px solid #ffffff12;
+  border-radius: 13px;
+  background: #ffffff05;
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  color: white;
+  font: 700 26px "Orbitron", sans-serif;
+}
+
+.profile-identity h3 {
+  margin: 0 0 7px;
+  color: white;
+  font-size: 19px;
+}
+
+.profile-identity p {
+  margin: 0;
+  color: #9ca3b8;
+  font-size: 11px;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 30px;
+}
+
+.profile-stat {
+  padding: 18px 12px;
+  border: 1px solid #ffffff12;
+  border-radius: 12px;
+  background: #090b1770;
+}
+
+.profile-stat span,
+.profile-match-hp span {
+  display: block;
+  margin-bottom: 10px;
+  color: #8f96af;
+  font: 600 9px "Orbitron", sans-serif;
+  letter-spacing: 1px;
+}
+
+.profile-stat strong {
+  color: #67e8f9;
+  font: 700 clamp(17px, 3vw, 25px) "Orbitron", sans-serif;
+}
+
+.profile-history-heading {
+  margin-bottom: 15px;
+}
+
+.profile-history-heading h3 {
+  margin: 0;
+  color: white;
+  font: 700 15px "Orbitron", sans-serif;
+}
+
+.profile-history-heading span {
+  color: #9ca3b8;
+  font-size: 11px;
+}
+
+.profile-history {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-match {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid #ffffff12;
+  border-radius: 11px;
+  background: #ffffff04;
+}
+
+.profile-result {
+  min-width: 57px;
+  padding: 8px 5px;
+  border-radius: 7px;
+  text-align: center;
+  font: 700 9px "Orbitron", sans-serif;
+}
+
+.result-win {
+  color: #86efac;
+  background: #22c55e18;
+}
+
+.result-loss {
+  color: #fda4af;
+  background: #f43f5e18;
+}
+
+.result-draw {
+  color: #fde68a;
+  background: #f59e0b18;
+}
+
+.profile-match-details {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+
+.profile-match-details strong {
+  overflow-wrap: anywhere;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+.profile-match-details span {
+  color: #8f96af;
+  font-size: 10px;
+}
+
+.profile-match-hp {
+  text-align: right;
+}
+
+.profile-match-hp strong {
+  color: #67e8f9;
+  font: 700 14px "Orbitron", sans-serif;
+}
+
+.profile-message {
+  padding: 24px 10px;
+  color: #9ca3b8;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.profile-error {
+  color: #fda4af;
+}
+
+@media (max-width: 600px) {
+  .profile-panel {
+    padding: 18px 13px;
+  }
+
+  .profile-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .profile-stat {
+    padding: 14px 10px;
+  }
+
+  .profile-match {
+    gap: 9px;
+    padding: 11px 8px;
+  }
+
+  .profile-result {
+    min-width: 48px;
+  }
+}
+
+.profile-player-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-player-link:hover {
+  color: #67e8f9;
+  text-decoration: underline;
+}

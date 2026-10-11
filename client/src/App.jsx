@@ -3,6 +3,7 @@ import { socket } from "./socket";
 import { register, login, me as fetchMe } from "./api";
 import { loadAuth, saveAuth, clearAuth, normalizePlayer } from "./auth";
 import Leaderboard from "./Leaderboard";
+import Profile from "./Profile";
 import {
   enableAudio,
   playHit,
@@ -36,6 +37,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [profileUsername, setProfileUsername] = useState("");
   const previousPhaseRef = useRef(null);
 
   useEffect(() => {
@@ -454,6 +456,15 @@ export default function App() {
 
       {!room ? (
         <>
+        {auth?.player?.username && (
+          <button
+            type="button"
+            className="profile-close"
+            onClick={() => setProfileUsername(auth.player.username)}
+          >
+            MY PROFILE
+          </button>
+        )}
         <section className="entry-grid">
           <article className="panel">
             <p className="eyebrow">PLAYER SETUP</p>
@@ -615,7 +626,14 @@ export default function App() {
           </aside>
         </section>
 
-        <Leaderboard />
+        {profileUsername && (
+          <Profile
+            username={profileUsername}
+            onClose={() => setProfileUsername("")}
+          />
+        )}
+
+        <Leaderboard onSelectPlayer={setProfileUsername} />
         </>
       ) : (
         <section className="panel battle-panel">
