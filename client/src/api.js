@@ -49,3 +49,7 @@ export function me(token) {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export function getLeaderboard() {
+  return request("/api/leaderboard");
+}

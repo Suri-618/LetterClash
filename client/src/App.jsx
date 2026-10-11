@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { socket } from "./socket";
 import { register, login, me as fetchMe } from "./api";
 import { loadAuth, saveAuth, clearAuth, normalizePlayer } from "./auth";
+import Leaderboard from "./Leaderboard";
 import {
   enableAudio,
   playHit,
@@ -452,6 +453,7 @@ export default function App() {
       </section>
 
       {!room ? (
+        <>
         <section className="entry-grid">
           <article className="panel">
             <p className="eyebrow">PLAYER SETUP</p>
@@ -612,6 +614,9 @@ export default function App() {
             </div>
           </aside>
         </section>
+
+        <Leaderboard />
+        </>
       ) : (
         <section className="panel battle-panel">
           <p className="eyebrow">
