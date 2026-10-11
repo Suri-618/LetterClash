@@ -1,8 +1,11 @@
+require("dotenv").config();
+
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
+const { connectDB } = require("./db");
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -412,6 +415,17 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`Letter Clash server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await connectDB();
+
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`Letter Clash server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
