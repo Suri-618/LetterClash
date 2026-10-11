@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { socket } from "./socket";
+import { register, login, me as fetchMe } from "./api";
+import { loadAuth, saveAuth, clearAuth, normalizePlayer } from "./auth";
 import {
   enableAudio,
   playHit,
@@ -26,6 +28,13 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [musicVolume, setMusicVolume] = useState(25);
   const [fightBanner, setFightBanner] = useState(false);
+  const [auth, setAuth] = useState(() => loadAuth());
+  const [authMode, setAuthMode] = useState("login");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
   const previousPhaseRef = useRef(null);
 
   useEffect(() => {
@@ -60,6 +69,33 @@ export default function App() {
       socket.off("disconnect", onDisconnect);
       socket.off("room-updated", onRoomUpdated);
       socket.off("game-error", onGameError);
+    };
+  }, []);
+
+  useEffect(() => {
+    const stored = loadAuth();
+    if (!stored?.token) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const result = await fetchMe(stored.token);
+      if (cancelled) return;
+
+      if (!result.ok) {
+        clearAuth();
+        setAuth(null);
+        return;
+      }
+
+      const player = normalizePlayer(result.data.player);
+      saveAuth(stored.token, player);
+      setAuth({ token: stored.token, player });
+      socket.auth = { token: stored.token };
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -138,10 +174,86 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [room, submittedRound]);
 
+  function applySocketAuth() {
+    socket.auth = auth?.token ? { token: auth.token } : {};
+  }
+
+  function handleAuthSuccess(token, player) {
+    const normalized = normalizePlayer(player);
+    saveAuth(token, normalized);
+    setAuth({ token, player: normalized });
+    setAuthUsername("");
+    setAuthPassword("");
+    setAuthError("");
+
+    socket.auth = { token };
+    if (socket.connected && !room) {
+      socket.disconnect();
+      socket.connect();
+    }
+  }
+
+  function handleLogout() {
+    clearAuth();
+    setAuth(null);
+    setAuthError("");
+    socket.auth = {};
+    if (socket.connected && !room) {
+      socket.disconnect();
+      socket.connect();
+    }
+  }
+
+  async function submitAuth(event) {
+    event.preventDefault();
+    if (authBusy) return;
+
+    setAuthError("");
+
+    const username = authUsername.trim();
+    const email = authEmail.trim();
+
+    if (
+      authMode === "register" &&
+      (username.length < 3 || username.length > 16)
+    ) {
+      setAuthError("Username must be 3–16 characters.");
+      return;
+    }
+
+    if (!email) {
+      setAuthError("Enter your email address.");
+      return;
+    }
+
+    if (authPassword.length < 8) {
+      setAuthError("Password must be at least 8 characters.");
+      return;
+    }
+
+    setAuthBusy(true);
+
+    const result =
+      authMode === "register"
+        ? await register({ username, email, password: authPassword })
+        : await login({ email, password: authPassword });
+
+    setAuthBusy(false);
+
+    if (!result.ok) {
+      setAuthError(result.error || "Authentication failed.");
+      return;
+    }
+
+    handleAuthSuccess(result.data.token, result.data.player);
+    setAuthEmail("");
+  }
+
   function enterRoom(action) {
+    const authed = Boolean(auth?.token);
     const cleanName = name.trim();
 
-    if (!cleanName) {
+    if (!authed && !cleanName) {
       setError("Enter your player name first.");
       return;
     }
@@ -177,6 +289,8 @@ export default function App() {
       );
     };
 
+    applySocketAuth();
+
     if (socket.connected) {
       sendRequest();
     } else {
@@ -207,6 +321,7 @@ export default function App() {
     }
   }
 
+  const account = auth?.player || null;
   const players = room?.players || [];
   const me = players.find((player) => player.id === playerId);
   const opponent = players.find((player) => player.id !== playerId);
@@ -275,9 +390,14 @@ export default function App() {
           <span className="brand-icon">⚔</span>
           LETTER<span>CLASH</span>
         </a>
-        <div className="connection">
-          <span className={`dot ${connected ? "online" : ""}`} />
-          {connected ? "SERVER CONNECTED" : "SERVER OFFLINE"}
+        <div className="topbar-meta">
+          <div className="connection">
+            <span className={`dot ${connected ? "online" : ""}`} />
+            {connected ? "SERVER CONNECTED" : "SERVER OFFLINE"}
+          </div>
+          <div className={`account-badge ${account ? "signed-in" : ""}`}>
+            {account ? `⬢ ${account.username}` : "GUEST MODE"}
+          </div>
         </div>
       </header>
 
@@ -337,14 +457,112 @@ export default function App() {
             <p className="eyebrow">PLAYER SETUP</p>
             <h2>Enter the arena</h2>
 
-            <label htmlFor="playerName">FIGHTER NAME</label>
-            <input
-              id="playerName"
-              value={name}
-              maxLength={16}
-              placeholder="Enter your name"
-              onChange={(e) => setName(e.target.value)}
-            />
+            {account ? (
+              <div className="account-chip">
+                <div>
+                  <span className="account-label">SIGNED IN</span>
+                  <strong>{account.username}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={handleLogout}
+                >
+                  LOG OUT
+                </button>
+              </div>
+            ) : (
+              <div className="auth-block">
+                <div className="auth-tabs">
+                  <button
+                    type="button"
+                    className={`auth-tab ${authMode === "login" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthError("");
+                    }}
+                  >
+                    LOG IN
+                  </button>
+                  <button
+                    type="button"
+                    className={`auth-tab ${authMode === "register" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("register");
+                      setAuthError("");
+                    }}
+                  >
+                    SIGN UP
+                  </button>
+                </div>
+
+                <form className="auth-form" onSubmit={submitAuth}>
+                  {authMode === "register" && (
+                    <>
+                      <label htmlFor="authUsername">USERNAME</label>
+                      <input
+                        id="authUsername"
+                        value={authUsername}
+                        maxLength={16}
+                        placeholder="YourName"
+                        onChange={(e) => setAuthUsername(e.target.value)}
+                      />
+                    </>
+                  )}
+
+                  <label htmlFor="authEmail">EMAIL</label>
+                  <input
+                    id="authEmail"
+                    type="email"
+                    value={authEmail}
+                    placeholder="you@example.com"
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                  />
+
+                  <label htmlFor="authPassword">PASSWORD</label>
+                  <input
+                    id="authPassword"
+                    type="password"
+                    value={authPassword}
+                    placeholder={
+                      authMode === "register" ? "8+ characters" : "Your password"
+                    }
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+
+                  <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={authBusy}
+                  >
+                    {authBusy
+                      ? "PLEASE WAIT..."
+                      : authMode === "register"
+                        ? "CREATE ACCOUNT"
+                        : "LOG IN"}
+                  </button>
+
+                  {authError && <p className="message">{authError}</p>}
+                </form>
+
+                <div className="separator">
+                  <span>OR PLAY AS A GUEST</span>
+                </div>
+              </div>
+            )}
+
+            {!account && (
+              <>
+                <label htmlFor="playerName">FIGHTER NAME</label>
+                <input
+                  id="playerName"
+                  value={name}
+                  maxLength={16}
+                  placeholder="Enter your name"
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </>
+            )}
 
             <button
               className="primary-button"

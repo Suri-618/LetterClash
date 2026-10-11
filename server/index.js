@@ -4,6 +4,8 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const { connectDB } = require("./db");
 const Player = require("./models/Player");
@@ -15,9 +17,14 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 const app = express();
+
+app.use(express.json({ limit: "10kb" }));
+
 app.use(cors({
   origin: allowedOrigins,
 }));
+
+app.use("/api/auth", require("./routes/auth"));
 
 const httpServer = http.createServer(app);
 
@@ -54,27 +61,40 @@ async function getOrCreatePlayerProfile(name) {
   const username = name.trim();
   const usernameKey = username.toLowerCase();
 
+  // First, check whether this username already exists.
+  const existing = await Player.findOne({ usernameKey })
+    .select("+passwordHash");
+
+  if (existing) {
+    // Never let a guest use a registered account.
+    if (existing.passwordHash) {
+      throw new Error(
+        "This username belongs to a registered account. Please log in or choose another username."
+      );
+    }
+
+    // Preserve existing guest profiles and their statistics.
+    return existing;
+  }
+
   try {
-    return await Player.findOneAndUpdate(
-      { usernameKey },
-      {
-        $setOnInsert: {
-          username,
-          usernameKey,
-        },
-      },
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-      }
-    );
+    return await Player.create({
+      username,
+      usernameKey,
+    });
   } catch (error) {
-    // Another connection may have created this username
-    // at the same time. Try retrieving the existing profile.
+    // Handle two guests trying to create the same username.
     if (error.code === 11000) {
-      const existing = await Player.findOne({ usernameKey });
-      if (existing) return existing;
+      const latest = await Player.findOne({ usernameKey })
+        .select("+passwordHash");
+
+      if (latest && !latest.passwordHash) {
+        return latest;
+      }
+
+      throw new Error(
+        "Username is unavailable. Please log in or choose another username."
+      );
     }
 
     throw error;
@@ -492,6 +512,48 @@ app.get("/api/players/:username/matches", async (req, res) => {
   }
 });
 
+io.use(async (socket, next) => {
+  const token =
+    typeof socket.handshake.auth?.token === "string"
+      ? socket.handshake.auth.token
+      : "";
+
+  socket.player = null;
+
+  // No token means this is an intentional guest connection.
+  if (!token) {
+    return next();
+  }
+
+  try {
+    if (!process.env.JWT_SECRET) {
+      return next(new Error("Authentication is not configured."));
+    }
+
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (
+      typeof payload.sub !== "string" ||
+      !mongoose.isValidObjectId(payload.sub)
+    ) {
+      return next(new Error("Invalid authentication token."));
+    }
+
+    const player = await Player.findById(payload.sub)
+      .select("_id username usernameKey")
+      .lean();
+
+    if (!player) {
+      return next(new Error("Player account not found."));
+    }
+
+    socket.player = player;
+    return next();
+  } catch (error) {
+    return next(new Error("Invalid or expired authentication token."));
+  }
+});
+
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
@@ -503,26 +565,31 @@ io.on("connection", (socket) => {
       });
     }
 
-    const playerName =
-      typeof name === "string" ? name.trim().slice(0, 16) : "";
-
-    if (playerName.length < 3) {
-      return callback({
-        ok: false,
-        error: "Username must be at least 3 characters.",
-      });
-    }
-
     let profile;
 
-    try {
-      profile = await getOrCreatePlayerProfile(playerName);
-    } catch (error) {
-      console.error("Player profile error:", error.message);
-      return callback({
-        ok: false,
-        error: "Could not create your player profile. Try again.",
-      });
+    if (socket.player) {
+      // Authenticated: trust the verified account, never the typed name.
+      profile = socket.player;
+    } else {
+      const playerName =
+        typeof name === "string" ? name.trim().slice(0, 16) : "";
+
+      if (playerName.length < 3) {
+        return callback({
+          ok: false,
+          error: "Username must be at least 3 characters.",
+        });
+      }
+
+      try {
+        profile = await getOrCreatePlayerProfile(playerName);
+      } catch (error) {
+        console.error("Player profile error:", error.message);
+        return callback({
+          ok: false,
+          error: "Could not create your player profile. Try again.",
+        });
+      }
     }
 
     const code = generateRoomCode();
@@ -554,7 +621,7 @@ io.on("connection", (socket) => {
     callback({ ok: true, code, playerId: socket.id, slot: 1 });
     sendRoomUpdate(code);
 
-    console.log(`${playerName} created room ${code}`);
+    console.log(`${profile.username} created room ${code}`);
   });
 
   socket.on("join-room", async ({ code, name } = {}, callback = () => {}) => {
@@ -567,13 +634,6 @@ io.on("connection", (socket) => {
 
     const roomCode =
       typeof code === "string" ? code.trim().toUpperCase() : "";
-
-    const playerName =
-      typeof name === "string" ? name.trim().slice(0, 16) : "";
-
-    if (!playerName) {
-      return callback({ ok: false, error: "Enter a player name." });
-    }
 
     const room = rooms.get(roomCode);
 
@@ -588,23 +648,35 @@ io.on("connection", (socket) => {
       return callback({ ok: false, error: "This room is already full." });
     }
 
-    if (playerName.length < 3) {
-      return callback({
-        ok: false,
-        error: "Username must be at least 3 characters.",
-      });
-    }
-
     let profile;
 
-    try {
-      profile = await getOrCreatePlayerProfile(playerName);
-    } catch (error) {
-      console.error("Player profile error:", error.message);
-      return callback({
-        ok: false,
-        error: "Could not load your player profile. Try again.",
-      });
+    if (socket.player) {
+      // Authenticated: trust the verified account, never the typed name.
+      profile = socket.player;
+    } else {
+      const playerName =
+        typeof name === "string" ? name.trim().slice(0, 16) : "";
+
+      if (!playerName) {
+        return callback({ ok: false, error: "Enter a player name." });
+      }
+
+      if (playerName.length < 3) {
+        return callback({
+          ok: false,
+          error: "Username must be at least 3 characters.",
+        });
+      }
+
+      try {
+        profile = await getOrCreatePlayerProfile(playerName);
+      } catch (error) {
+        console.error("Player profile error:", error.message);
+        return callback({
+          ok: false,
+          error: "Could not load your player profile. Try again.",
+        });
+      }
     }
 
     if (
@@ -629,7 +701,7 @@ io.on("connection", (socket) => {
     callback({ ok: true, code: roomCode, playerId: socket.id, slot: 2 });
     sendRoomUpdate(roomCode);
 
-    console.log(`${playerName} joined room ${roomCode}`);
+    console.log(`${profile.username} joined room ${roomCode}`);
   });
 
   socket.on("start-battle", () => {

@@ -1134,3 +1134,109 @@ footer {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Account authentication */
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.account-badge {
+  font: 10px "Orbitron", sans-serif;
+  letter-spacing: 1px;
+  color: #9ca3b8;
+  padding: 7px 12px;
+  border: 1px solid #ffffff17;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.account-badge.signed-in {
+  color: #67e8f9;
+  border-color: #67e8f950;
+  background: #67e8f910;
+}
+
+.auth-block {
+  margin-bottom: 8px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: #090b17;
+  border: 1px solid #30334b;
+  border-radius: 11px;
+  margin-bottom: 4px;
+}
+
+.auth-tab {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px;
+  background: transparent;
+  color: #8f96af;
+  font: 700 11px "Orbitron", sans-serif;
+  letter-spacing: 1px;
+}
+
+.auth-tab.active {
+  color: #071019;
+  background: linear-gradient(100deg, #67e8f9, #60a5fa);
+}
+
+.auth-form .primary-button {
+  margin-top: 20px;
+}
+
+.account-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #67e8f950;
+  border-radius: 11px;
+  background: #67e8f910;
+  margin: 6px 0 4px;
+}
+
+.account-chip strong {
+  display: block;
+  font: 700 15px "Orbitron", sans-serif;
+  color: #fff;
+  margin-top: 4px;
+}
+
+.account-label {
+  font: 9px "Orbitron", sans-serif;
+  letter-spacing: 1px;
+  color: #67e8f9;
+}
+
+.link-button {
+  border: 0;
+  background: transparent;
+  color: #a3abc2;
+  font: 700 10px "Orbitron", sans-serif;
+  letter-spacing: 1px;
+  padding: 6px 4px;
+}
+
+.link-button:hover:not(:disabled) {
+  color: #67e8f9;
+  transform: none;
+}
+
+@media (max-width: 560px) {
+  .topbar-meta {
+    gap: 10px;
+  }
+
+  .connection {
+    display: none;
+  }
+}
