@@ -42,6 +42,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [profileUsername, setProfileUsername] = useState("");
   const [activeTab, setActiveTab] = useState("play");
+  const [battleNotice, setBattleNotice] = useState("");
   const previousPhaseRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,14 +63,33 @@ export default function App() {
     const onRoomUpdated = (data) => {
       setRoom(data);
       setRoomCode(data.code);
+
+      // Clear the "opponent left" notice once a new battle is
+      // underway or a fresh opponent has joined.
+      if (
+        data.phase === "countdown" ||
+        data.phase === "playing" ||
+        data.players?.length === 2
+      ) {
+        setBattleNotice("");
+      }
     };
 
     const onGameError = (message) => setError(message);
+
+    const onPlayerLeft = (info) => {
+      setBattleNotice(
+        info?.name
+          ? `${info.name} left the battle.`
+          : "Your opponent left the battle."
+      );
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room-updated", onRoomUpdated);
     socket.on("game-error", onGameError);
+    socket.on("player-left", onPlayerLeft);
 
     if (socket.connected) setConnected(true);
 
@@ -78,6 +98,7 @@ export default function App() {
       socket.off("disconnect", onDisconnect);
       socket.off("room-updated", onRoomUpdated);
       socket.off("game-error", onGameError);
+      socket.off("player-left", onPlayerLeft);
     };
   }, []);
 
@@ -320,6 +341,7 @@ export default function App() {
     setPlayerId("");
     setRoomCode("");
     setSubmittedRound(null);
+    setBattleNotice("");
     setError("");
   }
 
@@ -646,6 +668,12 @@ export default function App() {
           <button className="room-code" onClick={copyCode}>
             {room.code} <span>▢ COPY ROOM CODE</span>
           </button>
+
+          {battleNotice && (
+            <p className="battle-notice" role="status">
+              {battleNotice}
+            </p>
+          )}
 
           <div className="battle-players">
             {[me, opponent].map((player, index) => (

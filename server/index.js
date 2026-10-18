@@ -10,6 +10,9 @@ const { Server } = require("socket.io");
 const { connectDB } = require("./db");
 const Player = require("./models/Player");
 const Match = require("./models/Match");
+const { evaluateSubmission } = require("./game/rules");
+const { createMatchSaver } = require("./game/persistence");
+const { allowEvent, RATE_LIMIT_MESSAGE } = require("./lib/rateLimit");
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -42,6 +45,11 @@ const STARTING_HP = 200;
 const COUNTDOWN_MS = 3000;
 const ROUND_DURATION_MS = 2500;
 const NEXT_ROUND_DELAY_MS = 1800;
+
+const { saveCompletedMatch, recordAbandonment } = createMatchSaver({
+  Match,
+  Player,
+});
 
 function generateRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -144,6 +152,16 @@ function removePlayer(socket) {
 
   if (!room) return;
 
+  const departing = room.players.find(
+    (player) => player.id === socket.id
+  );
+
+  // Quitting a battle in progress counts as a loss, so leaving
+  // cannot be used to dodge a defeat.
+  if (departing) {
+    void recordAbandonment(room, departing);
+  }
+
   clearRoomTimer(room);
   room.players = room.players.filter(
     (player) => player.id !== socket.id
@@ -158,6 +176,14 @@ function removePlayer(socket) {
   if (room.players.length === 0) {
     rooms.delete(code);
     return;
+  }
+
+  // Let the remaining player know their opponent is gone.
+  if (departing) {
+    io.to(code).emit("player-left", {
+      name: departing.name,
+      remaining: room.players.length,
+    });
   }
 
   sendRoomUpdate(code);
@@ -273,144 +299,24 @@ function startRound(code) {
   }, ROUND_DURATION_MS);
 }
 
-function calculateDamage(reactionTimeMs) {
-  if (reactionTimeMs < 200) return 30;
-  if (reactionTimeMs < 350) return 25;
-  if (reactionTimeMs < 500) return 20;
-  if (reactionTimeMs < 700) return 15;
-  return 10;
-}
-
-async function saveCompletedMatch(code, room) {
-  if (
-    room.matchSaved ||
-    room.matchSaving ||
-    room.phase !== "finished" ||
-    !room.winnerId ||
-    room.players.length !== 2
-  ) {
-    return;
-  }
-
-  const winner = room.players.find(
-    (player) => player.id === room.winnerId
-  );
-
-  if (!winner?.profileId) {
-    console.error("Cannot save match: winner profile is missing.");
-    return;
-  }
-
-  if (room.players.some((player) => !player.profileId)) {
-    console.error("Cannot save match: player profile is missing.");
-    return;
-  }
-
-  room.matchSaving = true;
-
-  const session = await Match.startSession();
-
-  try {
-    const matchKey = `${room.code}:${room.matchNumber}`;
-
-    const matchDocument = {
-      matchKey,
-      roomCode: room.code,
-
-      players: room.players.map((player) => ({
-        playerId: player.profileId,
-        username: player.name,
-        finalHP: player.hp,
-      })),
-
-      winnerId: winner.profileId,
-      winnerUsername: winner.name,
-      completedAt: new Date(),
-    };
-
-    // Save the match and update both profiles atomically.
-    // MongoDB Atlas supports transactions on replica sets.
-    await session.withTransaction(async () => {
-      await Match.create([matchDocument], { session });
-
-      for (const player of room.players) {
-        await Player.updateOne(
-          { _id: player.profileId },
-          {
-            $inc: {
-              matchesPlayed: 1,
-              ...(player.id === winner.id
-                ? { wins: 1 }
-                : { losses: 1 }),
-            },
-          },
-          { session }
-        );
-      }
-    });
-
-    room.matchSaved = true;
-
-    console.log(`Saved completed match ${matchKey}`);
-  } catch (error) {
-    if (error.code === 11000) {
-      // The unique matchKey already exists, so don't
-      // increment statistics for the same match again.
-      room.matchSaved = true;
-      console.log("Match already saved; skipping duplicate.");
-    } else {
-      console.error("Failed to save completed match:", error.message);
-    }
-  } finally {
-    await session.endSession();
-    room.matchSaving = false;
-  }
-}
-
 function submitLetter(socket, payload = {}) {
   const membership = getPlayerRoom(socket);
 
   if (!membership) return;
 
   const { code, room } = membership;
-  const round = room.currentRound;
 
-  if (room.phase !== "playing" || !round) return;
-  if (room.players.length !== 2) return;
+  // Validation (round id, letter, deadline, membership) lives in
+  // the pure rules module so it can be unit-tested.
+  const decision = evaluateSubmission(room, socket.id, payload);
 
-  // The player must belong to this room.
-  const attacker = room.players.find(
-    (player) => player.id === socket.id
-  );
+  if (!decision.accepted) return;
 
-  if (!attacker) return;
-
-  // Reject stale round IDs and incorrect letters.
-  if (payload.roundId !== round.id) return;
-
-  const submittedLetter =
-    typeof payload.letter === "string"
-      ? payload.letter.toUpperCase()
-      : "";
-
-  if (submittedLetter !== round.letter) return;
-
-  const now = Date.now();
-
-  if (now > round.deadline) return;
+  const { attacker, defender, damage, reactionTimeMs } = decision;
 
   // Lock the round immediately. Only one answer can win.
   room.phase = "resolving";
   clearRoomTimer(room);
-
-  const reactionTimeMs = Math.max(0, now - round.startedAt);
-  const damage = calculateDamage(reactionTimeMs);
-
-  const defender = room.players.find(
-    (player) => player.id !== attacker.id
-  );
-
-  if (!defender) return;
 
   defender.hp = Math.max(0, defender.hp - damage);
 
@@ -557,7 +463,13 @@ io.use(async (socket, next) => {
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
+  socket.rateState = {};
+
   socket.on("create-room", async ({ name } = {}, callback = () => {}) => {
+    if (!allowEvent(socket, "create-room")) {
+      return callback({ ok: false, error: RATE_LIMIT_MESSAGE });
+    }
+
     if (playerRooms.has(socket.id)) {
       return callback({
         ok: false,
@@ -625,6 +537,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join-room", async ({ code, name } = {}, callback = () => {}) => {
+    if (!allowEvent(socket, "join-room")) {
+      return callback({ ok: false, error: RATE_LIMIT_MESSAGE });
+    }
+
     if (playerRooms.has(socket.id)) {
       return callback({
         ok: false,
@@ -705,11 +621,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("start-battle", () => {
+    if (!allowEvent(socket, "start-battle")) return;
+
     const membership = getPlayerRoom(socket);
     if (membership) startBattle(membership.code, socket);
   });
 
   socket.on("submit-letter", (payload) => {
+    if (!allowEvent(socket, "submit-letter")) return;
+
     submitLetter(socket, payload);
   });
 
@@ -738,4 +658,16 @@ async function startServer() {
   }
 }
 
-startServer();
+// Only boot when run directly, so tests can import the app without
+// binding a port or connecting to the database.
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  httpServer,
+  io,
+  startServer,
+  createMatchSaver,
+};

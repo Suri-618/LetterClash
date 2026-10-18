@@ -335,6 +335,18 @@ input::placeholder {
   color: #9ca3b8;
 }
 
+.battle-notice {
+  background: #f59e0b1a;
+  border: 1px solid #f59e0b66;
+  border-radius: 10px;
+  color: #fcd34d;
+  font: 600 13px "Inter", sans-serif;
+  letter-spacing: 0.5px;
+  padding: 10px 16px;
+  margin: 0 auto 20px;
+  text-align: center;
+}
+
 .players-grid {
   display: grid;
   grid-template-columns: 1fr 60px 1fr;
