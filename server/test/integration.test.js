@@ -32,11 +32,11 @@ const GUEST_KEY = GUEST_NAME.toLowerCase();
 // download one. Falls back to mongodb-memory-server's download if the
 // system binary cannot be found.
 function findSystemMongod() {
-  if (process.env.MONGOMS_SYSTEM_BINARY) {
-    return process.env.MONGOMS_SYSTEM_BINARY;
-  }
-
   const candidates = [];
+
+  if (process.env.MONGOMS_SYSTEM_BINARY) {
+    candidates.push(process.env.MONGOMS_SYSTEM_BINARY);
+  }
 
   if (process.platform === "win32") {
     const base = "C:\\Program Files\\MongoDB\\Server";
@@ -186,6 +186,11 @@ async function waitForPlaying(client) {
 
 before(
   async () => {
+    // Read .env first so we can later prove that dotenv did not drag
+    // the run back onto the configured (Atlas) database.
+    require("dotenv").config();
+    const configuredUri = process.env.MONGODB_URI;
+
     process.env.STARTING_HP = "100";
     process.env.COUNTDOWN_MS = "60";
     process.env.ROUND_DURATION_MS = "1500";
@@ -197,18 +202,53 @@ before(
       process.env.MONGOMS_SYSTEM_BINARY = systemBinary;
     }
 
+    // Start an isolated in-memory replica set (transactions need a
+    // replica set). If this throws, the suite fails right here and
+    // never reaches the server, so it can never connect to Atlas.
     replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-    process.env.MONGODB_URI = replSet.getUri();
+
+    const memoryUri = replSet.getUri();
+
+    if (typeof memoryUri !== "string" || memoryUri.length === 0) {
+      throw new Error(
+        "In-memory MongoDB did not return a connection URI; refusing to run against any other database."
+      );
+    }
+
+    process.env.MONGODB_URI = memoryUri;
 
     // Required only after the env overrides above are in place, since
-    // index.js reads its constants at load time.
+    // index.js reads its constants at load time. Requiring it also
+    // runs dotenv.config(), which must not overwrite our URI.
     const serverModule = require("../index");
+
+    assert.ok(
+      process.env.MONGODB_URI === memoryUri,
+      "dotenv must not overwrite the in-memory MONGODB_URI"
+    );
+    assert.ok(
+      process.env.MONGODB_URI !== configuredUri,
+      "integration tests must not run against the configured (Atlas) database"
+    );
+
     createMatchSaver = serverModule.createMatchSaver;
     httpServer = serverModule.httpServer;
     io = serverModule.io;
 
     await serverModule.startServer();
     await waitUntil(() => httpServer.listening, { message: "server listening" });
+
+    // The live connection must be the in-memory instance, not Atlas.
+    const { host, port: connectedPort } = mongoose.connection;
+    assert.ok(
+      host === "127.0.0.1" || host === "localhost",
+      `expected an in-memory MongoDB host, got "${host}"`
+    );
+    assert.equal(
+      String(connectedPort),
+      new URL(memoryUri).port,
+      "connected MongoDB port must match the in-memory replica set"
+    );
 
     const { port } = httpServer.address();
     baseUrl = `http://127.0.0.1:${port}`;
