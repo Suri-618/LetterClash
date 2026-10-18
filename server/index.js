@@ -41,10 +41,12 @@ const io = new Server(httpServer, {
 const rooms = new Map();
 const playerRooms = new Map();
 
-const STARTING_HP = 200;
-const COUNTDOWN_MS = 3000;
-const ROUND_DURATION_MS = 2500;
-const NEXT_ROUND_DELAY_MS = 1800;
+// Overridable so integration tests can run fast; production uses
+// the defaults when these variables are unset.
+const STARTING_HP = Number(process.env.STARTING_HP) || 200;
+const COUNTDOWN_MS = Number(process.env.COUNTDOWN_MS) || 3000;
+const ROUND_DURATION_MS = Number(process.env.ROUND_DURATION_MS) || 2500;
+const NEXT_ROUND_DELAY_MS = Number(process.env.NEXT_ROUND_DELAY_MS) || 1800;
 
 const { saveCompletedMatch, recordAbandonment } = createMatchSaver({
   Match,

@@ -4,7 +4,9 @@
   "description": "LetterClash - real-time reaction duel",
   "main": "index.js",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test \"game/**/*.test.js\" \"lib/**/*.test.js\"",
+    "test:integration": "node --test \"test/**/*.test.js\"",
+    "test:all": "node --test",
     "dev": "nodemon index.js",
     "start": "node index.js"
   },
@@ -21,6 +23,8 @@
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "mongodb-memory-server": "^10.4.3",
+    "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.4"
   }
 }
