@@ -4,6 +4,7 @@ import { register, login, me as fetchMe } from "./api";
 import { loadAuth, saveAuth, clearAuth, normalizePlayer } from "./auth";
 import Leaderboard from "./Leaderboard";
 import Profile from "./Profile";
+import ArcadeFighter from "./ArcadeFighter.jsx";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import LandingPage from "./LandingPage";
 import AuthPage from "./AuthPage";
@@ -357,14 +358,11 @@ export default function App() {
   const account = auth?.player || null;
   const players = room?.players || [];
   const me = players.find((player) => player.id === playerId);
-  const opponent = players.find((player) => player.id !== playerId);
   const countdown = room?.countdownEndsAt
     ? Math.max(0, Math.ceil((room.countdownEndsAt - now) / 1000))
     : 0;
 
   const inBattle = room && room.phase !== "waiting";
-  const myHp = me?.hp ?? 200;
-  const opponentHp = opponent?.hp ?? 200;
 
   const musicOn = Boolean(
     soundEnabled && room && room.phase !== "waiting"
@@ -659,7 +657,7 @@ export default function App() {
         )}
         </>
       ) : (
-        <section className="panel battle-panel">
+        <section className="panel battle-panel cyber-battle-panel">
           <p className="eyebrow">
             {inBattle ? "LIVE BATTLE" : "PRIVATE BATTLE LOBBY"}
           </p>
@@ -675,57 +673,232 @@ export default function App() {
             </p>
           )}
 
-          <div className="battle-players">
-            {[me, opponent].map((player, index) => (
-              <div
-                className={[
-                  "battle-player",
-                  index === 0 ? "blue-border" : "purple-border",
-                  combatEffect?.defenderId === player?.id ? "hit-flash" : "",
-                  combatEffect?.attackerId === player?.id ? "attack-flash" : "",
-                  room.winnerId === player?.id ? "winner-card" : "",
-                ].filter(Boolean).join(" ")}
-                key={player?.id || index}
-              >
-                <div className={`fighter-avatar ${index === 0 ? "blue-avatar" : "purple-avatar"}`}>
-                  P{index + 1}
-                </div>
-                <p className="eyebrow">
-                  {player?.id === playerId ? "YOU" : index === 0 ? "PLAYER ONE" : "PLAYER TWO"}
-                </p>
-                <h3>{player?.name || "Waiting for rival..."}</h3>
+          <div className="fight-hud">
+            {[...players].sort((a, b) => a.slot - b.slot).map((player, index) => {
+              const isMe = player?.id === playerId;
+              const isBlue = index === 0;
+              const hp = Math.max(0, Math.min(200, player?.hp ?? 200));
+              const hpPercent = (hp / 200) * 100;
+              const combo = combos[player?.id] || 0;
 
-                {(combos[player?.id] || 0) >= 2 && (
-                  <div className="combo-badge" key={combos[player?.id]}>
-                    COMBO ×{combos[player.id]}
-                  </div>
-                )}
+              return (
+                <div
+                  key={player?.id || index}
+                  className={[
+                    "fight-hud-player",
+                    isBlue ? "fight-hud-blue" : "fight-hud-purple",
+                    isMe ? "fight-hud-current" : "",
+                    hp <= 60 ? "fight-hud-critical" : "",
+                  ].filter(Boolean).join(" ")}
+                >
+                  <div className="fight-hud-identity">
+                    <div className="fight-hud-avatar">
+                      {player?.name?.slice(0, 1).toUpperCase() || "?"}
+                    </div>
 
-                {combatEffect && combatEffect.defenderId === player?.id && (
-                  <div className="damage-popup" key={combatEffect.id}>
-                    −{combatEffect.damage} HP
+                    <div className="fight-hud-details">
+                      <div className="fight-hud-label">
+                        {`PLAYER ${index + 1} · ${isMe ? "YOU" : "RIVAL"}`}
+                      </div>
+                      <div className="fight-hud-name">
+                        {player?.name || "Waiting..."}
+                      </div>
+                      {combo >= 2 && (
+                        <div className="fight-hud-combo">
+                          {combo} HIT COMBO!
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-                <div className="hp-label">
-                  <span>HEALTH</span>
-                  <strong>{player?.hp ?? 200} / 200</strong>
-                </div>
-                <div className="health-track">
+
+                  <div className="fight-hud-health-info">
+                    <span>HP</span>
+                    <strong>{hp}<small> / 200</small></strong>
+                  </div>
+
                   <div
-                    className={`health-fill ${index === 0 ? "blue-fill" : "purple-fill"}`}
-                    style={{ width: `${Math.max(0, (player?.hp ?? 200) / 200 * 100)}%` }}
-                  />
+                    className="fight-hud-health-track"
+                    role="progressbar"
+                    aria-label={`${player?.name || `Player ${index + 1}`} health`}
+                    aria-valuemin={0}
+                    aria-valuemax={200}
+                    aria-valuenow={hp}
+                  >
+                    <div
+                      className="fight-hud-health-fill"
+                      style={{ width: `${hpPercent}%` }}
+                    />
+                  </div>
+
+                  <div className="fight-hud-status">
+                    <span>
+                      {hp <= 0
+                        ? "KNOCKED OUT"
+                        : hp <= 60
+                          ? "CRITICAL"
+                          : isMe
+                            ? "YOUR FIGHTER"
+                            : "OPPONENT"}
+                    </span>
+                    <span>{Math.round(hpPercent)}%</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+
+            <div className="fight-hud-vs">VS</div>
           </div>
+
+          <div
+            className={`arcade-fight-stage ${
+              combatEffect ? "screen-shake" : ""
+            }`}
+          >
+  <div className="arcade-stage-label">CYBER ARENA</div>
+
+  {[...players].sort((a, b) => a.slot - b.slot).map((player, index) => {
+    const isPurple = index === 1;
+    const isAttacking =
+      Boolean(combatEffect) &&
+      combatEffect.attackerId === player?.id;
+    const isHit =
+      Boolean(combatEffect) &&
+      combatEffect.defenderId === player?.id;
+
+    const fighterClass = [
+      "arcade-fighter",
+      isPurple ? "arcade-fighter-purple" : "arcade-fighter-cyan",
+      index === 1 ? "faces-left" : "faces-right",
+      isAttacking ? "fighter-punch" : "",
+      isHit ? "fighter-recoil" : "",
+      isHit ? (isPurple ? "recoil-right" : "recoil-left") : "",
+    ].filter(Boolean).join(" ");
+
+    const pose = isHit
+      ? "hit"
+      : isAttacking
+        ? "punch"
+        : "idle";
+
+    const colorFolder = isPurple
+      ? "purple-fighter"
+      : "cyan-fighter";
+
+    return (
+      <div
+        className={fighterClass}
+        key={player?.id || index}
+      >
+        <ArcadeFighter
+          key={`${player?.id}-${combatEffect?.id || "idle"}-${pose}`}
+          color={colorFolder}
+          pose={pose}
+          facing={isPurple ? "left" : "right"}
+          animationId={combatEffect?.id || null}
+        />
+
+        {isHit && combatEffect && (
+          <span className="arcade-damage" key={combatEffect.id}>
+            −{combatEffect.damage} HP
+          </span>
+        )}
+      </div>
+    );
+  })}
+
+  {combatEffect && (
+    <img
+      className="arcade-impact"
+      key={combatEffect.id}
+      src="/sprites/effects/impact.png"
+      alt=""
+      aria-hidden="true"
+    />
+  )}
+
+  {room.phase === "finished" && (
+    <div className="match-finished-overlay" role="status">
+      <img
+        className="match-finished-art"
+        src={
+          room.winnerId === playerId
+            ? "/images/ko-victory.png"
+            : "/images/ko-defeat.png"
+        }
+        alt={room.winnerId === playerId ? "K.O. Victory" : "K.O. Defeat"}
+      />
+
+      <div
+        className={
+          room.winnerId === playerId
+            ? "match-finished-caption is-victory"
+            : "match-finished-caption is-defeat"
+        }
+      >
+        {room.winnerId === playerId ? "VICTORY!" : "DEFEATED"}
+      </div>
+
+      <div className="match-finished-winner">
+        {players.find((player) => player.id === room.winnerId)?.name || "Winner"} WINS
+      </div>
+
+      {me?.isHost && (
+        <button
+          type="button"
+          className="match-play-again"
+          onClick={() => socket.emit("start-battle")}
+        >
+          PLAY AGAIN
+        </button>
+      )}
+    </div>
+  )}
+
+  {room.phase === "countdown" && (
+    <div className="combat-center-overlay countdown-combat" key={countdown}>
+      <span className="combat-overlay-label">GET READY</span>
+      <div className="combat-target-letter">
+        {countdown > 0 ? countdown : "GO!"}
+      </div>
+      <span className="combat-overlay-hint">PREPARE TO STRIKE</span>
+    </div>
+  )}
+
+  {room.phase === "playing" && room.currentRound && (
+    <div className="combat-center-overlay active-combat">
+      <span className="combat-overlay-label">
+        ROUND {room.currentRound.id}
+      </span>
+
+      <div className="combat-target-letter">
+        {room.currentRound.letter}
+      </div>
+
+      <span className="combat-overlay-hint">
+        PRESS {room.currentRound.letter} TO ATTACK
+      </span>
+
+      <span className="combat-overlay-timer">
+        {Math.max(
+          0,
+          (room.currentRound.deadline - now) / 1000
+        ).toFixed(1)}s
+      </span>
+    </div>
+  )}
+</div>
 
           <div
             className={`arena ${
               room.phase === "finished" ? "victory-arena" : ""
+            } ${
+              (room.phase === "playing" && !fightBanner) ||
+              room.phase === "finished"
+                ? "arena-collapsed"
+                : ""
             }`}
           >
-            {fightBanner && (
+            {room.phase === "playing" && fightBanner && (
               <div className="fight-overlay" key="fight-banner">
                 <div className="fight-banner-text">FIGHT!</div>
                 <div className="fight-banner-subtitle">NO MERCY · NO DELAY</div>
@@ -749,45 +922,6 @@ export default function App() {
                   </button>
                 )}
                 {!me?.isHost && <p className="message">The host will start the battle.</p>}
-              </>
-            )}
-
-            {room.phase === "countdown" && (
-              <div className="countdown-stage" key={countdown}>
-                <p className="eyebrow countdown-label">PREPARE FOR BATTLE</p>
-
-                <div className="countdown-ring">
-                  <div
-                    className={`big-count ${countdown === 1 ? "countdown-final" : ""}`}
-                    key={countdown}
-                  >
-                    {countdown > 0 ? countdown : "GO!"}
-                  </div>
-                </div>
-
-                <p className="countdown-caption">
-                  {countdown > 1
-                    ? "LOCK IN YOUR REFLEXES"
-                    : countdown === 1
-                      ? "GET READY TO STRIKE!"
-                      : "FIGHT!"}
-                </p>
-              </div>
-            )}
-
-            {room.phase === "playing" && room.currentRound && (
-              <>
-                <p className="eyebrow">ROUND {room.currentRound.id}</p>
-                <div className="big-letter">{room.currentRound.letter}</div>
-                <p className="arena-instruction">
-                  PRESS <strong>{room.currentRound.letter}</strong> NOW
-                </p>
-                <div className="round-timer">
-                  Time remaining: {Math.max(0, (room.currentRound.deadline - now) / 1000).toFixed(1)}s
-                </div>
-                {submittedRound === room.currentRound.id && (
-                  <p className="message">Input sent — waiting for the server...</p>
-                )}
               </>
             )}
 
@@ -815,32 +949,6 @@ export default function App() {
                   <h3>{room.lastResult?.message || "Round over"}</h3>
                 )}
                 <p className="muted">Next round loading...</p>
-              </>
-            )}
-
-            {room.phase === "finished" && (
-              <>
-                <p className="eyebrow">FINAL RESULT</p>
-
-                <div className="victory-banner" key={room.winnerId}>
-                  {room.winnerId === playerId ? "VICTORY!" : "DEFEATED"}
-                </div>
-
-                <div className="big-letter final-letter">
-                  {room.winnerId === playerId ? "W" : "L"}
-                </div>
-                <h3>{room.winnerId === playerId ? "YOU WIN!" : "YOU LOSE!"}</h3>
-                <p className="muted">
-                  {players.find((player) => player.id === room.winnerId)?.name} wins the battle.
-                </p>
-                {me?.isHost && (
-                  <button
-                    className="primary-button arena-button"
-                    onClick={() => socket.emit("start-battle")}
-                  >
-                    PLAY AGAIN
-                  </button>
-                )}
               </>
             )}
           </div>
