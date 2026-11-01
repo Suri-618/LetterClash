@@ -41,4 +41,6 @@ const playerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+playerSchema.index({ wins: -1, rating: -1 });
+
 module.exports = mongoose.model("Player", playerSchema);

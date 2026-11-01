@@ -1,6 +1,17 @@
 // Pure Letter Clash game rules. No Socket.IO, no database, no I/O,
 // so the logic can be unit-tested directly.
 
+// A human cannot see the target and press the key faster than this.
+// Anything quicker is almost certainly a script.
+const MIN_REACTION_MS = Number(process.env.MIN_REACTION_MS) || 100;
+
+// Network latency inflates the measured reaction time: the round
+// start message takes roughly half a round-trip to reach a player.
+// Subtract half of the reported RTT, but cap it so a client cannot
+// claim a huge ping to gain an advantage.
+const MAX_RTT_COMPENSATION_MS =
+  Number(process.env.MAX_RTT_COMPENSATION_MS) || 150;
+
 function calculateDamage(reactionTimeMs) {
   if (reactionTimeMs < 200) return 30;
   if (reactionTimeMs < 350) return 25;
@@ -45,19 +56,37 @@ function evaluateSubmission(room, playerId, payload = {}, now = Date.now()) {
     return { accepted: false, reason: "late" };
   }
 
+  const rawReactionMs = Math.max(0, now - round.startedAt);
+
+  // Bot guard: a script answering in under MIN_REACTION_MS is not a
+  // human. Reject it without ending the round.
+  if (rawReactionMs < MIN_REACTION_MS) {
+    return { accepted: false, reason: "too-fast" };
+  }
+
   const defender = room.players.find((player) => player.id !== playerId);
 
   if (!defender) {
     return { accepted: false, reason: "no-defender" };
   }
 
-  const reactionTimeMs = Math.max(0, now - round.startedAt);
+  // Fairness: compensate for the half-RTT it took the round start
+  // to reach the attacker, so high-ping players are not punished.
+  const reportedRttMs = Number(payload.rttMs);
+  const compensation = Number.isFinite(reportedRttMs)
+    ? Math.min(Math.max(reportedRttMs, 0) / 2, MAX_RTT_COMPENSATION_MS)
+    : 0;
+  const reactionTimeMs = Math.max(
+    MIN_REACTION_MS,
+    Math.round(rawReactionMs - compensation)
+  );
 
   return {
     accepted: true,
     attacker,
     defender,
     reactionTimeMs,
+    rawReactionMs,
     damage: calculateDamage(reactionTimeMs),
   };
 }

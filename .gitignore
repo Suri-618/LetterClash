@@ -5,3 +5,19 @@ client/dist/
 !.env.example
 .vercel/
 .DS_Store
+
+# Local archives and editor backups
+*.zip
+*.backup
+client/test.txt
+
+# Supplied reference media (do not ship)
+client/public/street-fighter-v-*
+client/public/Chun-liref.jpg
+client/public/Guileref.jpg
+client/public/juriref.png
+client/public/kairef.png
+
+# Unused 3D assets (not imported by the app)
+client/public/models/
+

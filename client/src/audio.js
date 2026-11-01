@@ -1,8 +1,13 @@
 let audioContext = null;
 let masterGain = null;
-let musicTimer = null;
+let sfxGain = null;
+let musicGain = null;
+let musicSchedulerTimer = null;
 let musicStep = 0;
 let musicEnabled = false;
+let nextNoteTime = 0;
+let musicVolume = 0.25;
+let sfxVolume = 0.8;
 
 function getAudioContext() {
   if (!audioContext) {
@@ -15,7 +20,16 @@ function getAudioContext() {
 
     audioContext = new AudioContextClass();
     masterGain = audioContext.createGain();
-    masterGain.gain.value = 0.25;
+    masterGain.gain.value = 1;
+
+    musicGain = audioContext.createGain();
+    musicGain.gain.value = musicVolume;
+    musicGain.connect(masterGain);
+
+    sfxGain = audioContext.createGain();
+    sfxGain.gain.value = sfxVolume;
+    sfxGain.connect(masterGain);
+
     masterGain.connect(audioContext.destination);
   }
 
@@ -43,11 +57,16 @@ function playTone({
   type = "sine",
   volume = 0.3,
   slideTo = null,
+  bus = "sfx",
+  when = null,
 } = {}) {
-  if (!audioContext || !masterGain) return;
+  if (!audioContext) return;
   if (audioContext.state !== "running") return;
 
-  const now = audioContext.currentTime;
+  const destination = bus === "music" ? musicGain : sfxGain;
+  if (!destination) return;
+
+  const now = when ?? audioContext.currentTime;
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
 
@@ -62,13 +81,10 @@ function playTone({
   }
 
   gain.gain.setValueAtTime(volume, now);
-  gain.gain.exponentialRampToValueAtTime(
-    0.001,
-    now + duration
-  );
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
   oscillator.connect(gain);
-  gain.connect(masterGain);
+  gain.connect(destination);
 
   oscillator.start(now);
   oscillator.stop(now + duration + 0.02);
@@ -92,6 +108,35 @@ export function playAttack() {
     type: "triangle",
     volume: 0.25,
   });
+}
+
+export function playSelect() {
+  playTone({
+    frequency: 760,
+    slideTo: 980,
+    duration: 0.055,
+    type: "square",
+    volume: 0.13,
+  });
+}
+
+export function playLock() {
+  playTone({
+    frequency: 320,
+    slideTo: 640,
+    duration: 0.09,
+    type: "square",
+    volume: 0.3,
+  });
+
+  window.setTimeout(() => {
+    playTone({
+      frequency: 920,
+      duration: 0.11,
+      type: "triangle",
+      volume: 0.22,
+    });
+  }, 55);
 }
 
 export function playCountdown() {
@@ -160,7 +205,7 @@ const arpPattern = [
   392, 494, 587, 494,
 ];
 
-function playChipNote(frequency, duration = 0.09, volume = 0.12) {
+function playChipNote(frequency, duration = 0.09, volume = 0.13, when = null) {
   if (!frequency) return;
 
   playTone({
@@ -168,16 +213,20 @@ function playChipNote(frequency, duration = 0.09, volume = 0.12) {
     duration,
     type: "square",
     volume,
+    bus: "music",
+    when,
   });
 }
 
-function playChipBass(frequency) {
+function playChipBass(frequency, when = null) {
   playTone({
     frequency,
     slideTo: frequency * 0.72,
     duration: 0.13,
     type: "triangle",
     volume: 0.42,
+    bus: "music",
+    when,
   });
 
   playTone({
@@ -185,26 +234,32 @@ function playChipBass(frequency) {
     duration: 0.11,
     type: "square",
     volume: 0.12,
+    bus: "music",
+    when,
   });
 }
 
-function playArcadeKick() {
+function playArcadeKick(when = null) {
   playTone({
     frequency: 155,
     slideTo: 48,
     duration: 0.14,
     type: "triangle",
     volume: 0.55,
+    bus: "music",
+    when,
   });
 }
 
-function playArcadeSnare() {
+function playArcadeSnare(when = null) {
   playTone({
     frequency: 220,
     slideTo: 100,
     duration: 0.075,
     type: "square",
     volume: 0.2,
+    bus: "music",
+    when,
   });
 
   playTone({
@@ -213,94 +268,131 @@ function playArcadeSnare() {
     duration: 0.04,
     type: "triangle",
     volume: 0.1,
+    bus: "music",
+    when,
   });
 }
 
-function playArcadeBlip() {
+function playArcadeBlip(when = null) {
   playTone({
     frequency: 1100,
     slideTo: 500,
     duration: 0.035,
     type: "square",
     volume: 0.07,
+    bus: "music",
+    when,
   });
 }
 
-function playMusicNote() {
-  if (!musicEnabled) return;
+function scheduleMusicStep(stepTime) {
+  if (!musicEnabled || !audioContext) return;
 
   const step = musicStep % 32;
   const patternStep = step % 16;
 
   // Energetic drum rhythm.
   if (patternStep % 4 === 0) {
-    playArcadeKick();
+    playArcadeKick(stepTime);
   }
 
   if (patternStep === 4 || patternStep === 12) {
-    playArcadeSnare();
+    playArcadeSnare(stepTime);
   }
 
-  // Quick arcade hi-hat accents.
   if (patternStep % 2 === 1) {
-    playArcadeBlip();
+    playArcadeBlip(stepTime);
   }
 
-  // Bass plays on selected syncopated beats.
   if ([0, 2, 4, 6, 8, 11, 12, 14].includes(patternStep)) {
-    playChipBass(bassPattern[patternStep]);
+    playChipBass(bassPattern[patternStep], stepTime);
   }
 
-  // Catchy lead melody with a second variation.
   const leadFrequency = leadPattern[patternStep];
 
   if (step < 16) {
-    playChipNote(leadFrequency, 0.085, 0.13);
+    playChipNote(leadFrequency, 0.085, 0.13, stepTime);
   } else {
-    // Repeat with a brighter octave accent.
-    playChipNote(leadFrequency, 0.075, 0.13);
+    playChipNote(leadFrequency, 0.075, 0.13, stepTime);
 
     if ([2, 3, 6, 10, 11, 14].includes(patternStep)) {
-      playChipNote(leadFrequency * 2, 0.045, 0.045);
+      playChipNote(leadFrequency * 2, 0.045, 0.045, stepTime);
     }
   }
 
-  // Fast alternating arpeggio creates a retro game soundtrack.
   if (patternStep % 2 === 0) {
-    playChipNote(arpPattern[patternStep], 0.055, 0.065);
+    playChipNote(arpPattern[patternStep], 0.055, 0.065, stepTime);
   }
 
   musicStep = (musicStep + 1) % 32;
 }
 
+function runMusicScheduler() {
+  if (!musicEnabled || !audioContext) {
+    if (musicSchedulerTimer !== null) {
+      clearTimeout(musicSchedulerTimer);
+      musicSchedulerTimer = null;
+    }
+    return;
+  }
+
+  // Look ahead 150ms to avoid browser timer jitter and background-tab
+  // throttling. Schedule directly onto the AudioContext timeline.
+  while (nextNoteTime < audioContext.currentTime + 0.15) {
+    scheduleMusicStep(nextNoteTime);
+    nextNoteTime += 0.1;
+  }
+
+  musicSchedulerTimer = window.setTimeout(runMusicScheduler, 25);
+}
+
 export function startMusic() {
-  if (musicTimer !== null) return;
+  try {
+    getAudioContext();
+  } catch {
+    return;
+  }
+
+  if (musicEnabled) return;
 
   musicEnabled = true;
   musicStep = 0;
+  nextNoteTime = audioContext.currentTime + 0.02;
 
-  playMusicNote();
-
-  // Fast 8-bit rhythm: 100 ms per step, approximately 150 BPM.
-  musicTimer = setInterval(playMusicNote, 100);
+  runMusicScheduler();
 }
 
 export function stopMusic() {
   musicEnabled = false;
 
-  if (musicTimer !== null) {
-    clearInterval(musicTimer);
-    musicTimer = null;
+  if (musicSchedulerTimer !== null) {
+    clearTimeout(musicSchedulerTimer);
+    musicSchedulerTimer = null;
   }
 }
 
 export function setAudioVolume(value) {
-  if (!getAudioContext()) return;
+  try {
+    getAudioContext();
+  } catch {
+    return;
+  }
 
-  const volume = Math.max(0, Math.min(1, value));
-  masterGain.gain.setTargetAtTime(
-    volume,
-    audioContext.currentTime,
-    0.03
-  );
+  musicVolume = Math.max(0, Math.min(1, value));
+  if (musicGain) {
+    musicGain.gain.setTargetAtTime(musicVolume, audioContext.currentTime, 0.03);
+  }
+}
+
+export function setSfxVolume(value) {
+  try {
+    getAudioContext();
+  } catch {
+    return;
+  }
+
+  sfxVolume = Math.max(0, Math.min(1, value));
+  if (sfxGain) {
+    sfxGain.gain.setTargetAtTime(sfxVolume, audioContext.currentTime, 0.03);
+  }
 }

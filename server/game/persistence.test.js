@@ -46,6 +46,19 @@ function createFakeModels() {
   };
 
   const Player = {
+    find() {
+      return {
+        select() {
+          return this;
+        },
+        session() {
+          return this;
+        },
+        async lean() {
+          return [];
+        },
+      };
+    },
     async updateOne(filter, update) {
       const id = String(filter._id);
       const bucket =
@@ -95,7 +108,10 @@ test("persistMatch saves the match and updates both players", async () => {
 
   const result = await persistMatch(payload(), { Match, Player });
 
-  assert.deepEqual(result, { saved: true });
+  assert.deepEqual(result, {
+    saved: true,
+    ratingChanges: { p1: 16, p2: -16 },
+  });
   assert.equal(state.matches.length, 1);
   assert.deepEqual(state.increments.p1, {
     wins: 1,
@@ -135,7 +151,10 @@ test("persistMatchWithRetry retries once after a transient failure", async () =>
 
   const result = await persistMatchWithRetry(payload(), { Match, Player });
 
-  assert.deepEqual(result, { saved: true });
+  assert.deepEqual(result, {
+    saved: true,
+    ratingChanges: { p1: 16, p2: -16 },
+  });
   assert.equal(state.matches.length, 1);
 });
 
@@ -172,7 +191,11 @@ test("saveCompletedMatch ignores matches that never finished", async () => {
 test("recordAbandonment credits the survivor with the win", async () => {
   const { Match, Player, state } = createFakeModels();
   const saver = createMatchSaver({ Match, Player });
-  const room = makeRoom({ phase: "playing", winnerId: null });
+  const room = makeRoom({
+    phase: "playing",
+    winnerId: null,
+    roundsResolved: 1,
+  });
   const leaver = room.players[1];
 
   await saver.recordAbandonment(room, leaver);

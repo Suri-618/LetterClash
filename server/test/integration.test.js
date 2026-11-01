@@ -28,6 +28,10 @@ const GUEST_NAME = "Challenger";
 const HOST_KEY = HOST_NAME.toLowerCase();
 const GUEST_KEY = GUEST_NAME.toLowerCase();
 
+// The server rejects superhuman reaction times (bot guard), so tests
+// must wait past the minimum before a correct answer counts.
+const MIN_REACTION_WAIT = 140;
+
 // Prefer an already-installed MongoDB binary so tests never have to
 // download one. Falls back to mongodb-memory-server's download if the
 // system binary cannot be found.
@@ -174,13 +178,29 @@ async function setupRoom() {
     message: "guest room update",
   });
 
-  return { host, guest, code: created.code };
+  return { host, guest, code: created.code, created, joined };
 }
 
 async function waitForPlaying(client) {
   await waitUntil(
     () => client.state.room?.phase === "playing" && client.state.room.currentRound,
     { message: "round to start", timeout: 5000 }
+  );
+}
+
+async function resolveRound(client) {
+  const marker = client.state.updates.length;
+  await sleep(MIN_REACTION_WAIT);
+  const { currentRound } = client.state.room;
+
+  client.socket.emit("submit-letter", {
+    letter: currentRound.letter,
+    roundId: currentRound.id,
+  });
+
+  await waitUntil(
+    () => updatesSince(client, marker).some((update) => update.lastResult),
+    { message: "round resolved" }
   );
 }
 
@@ -195,6 +215,10 @@ before(
     process.env.COUNTDOWN_MS = "60";
     process.env.ROUND_DURATION_MS = "1500";
     process.env.NEXT_ROUND_DELAY_MS = "60";
+    // Keep the disconnect grace window short so reconnect and
+    // abandonment paths can be exercised quickly.
+    process.env.DISCONNECT_GRACE_MS = "800";
+    process.env.GUEST_IP_LIMIT_MAX = "10000";
     process.env.PORT = "0";
 
     const systemBinary = findSystemMongod();
@@ -260,6 +284,10 @@ after(async () => {
   for (const client of clients) client.socket.disconnect();
   clients = [];
 
+  // Let any pending disconnect-grace timers fire before the database
+  // beneath them is torn down.
+  await sleep(900);
+
   if (io) io.close();
   if (httpServer) {
     await new Promise((resolve) => httpServer.close(resolve));
@@ -277,9 +305,9 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const client of clients) client.socket.disconnect();
   clients = [];
-  // Give any in-flight persistence a moment before the next test
-  // clears the collections.
-  await sleep(200);
+  // Wait out the disconnect-grace timers (800ms in tests) and any
+  // in-flight persistence before the next test clears the collections.
+  await sleep(900);
 });
 
 test("a room accepts only two players", async () => {
@@ -307,11 +335,15 @@ test("joining an unknown room code is rejected", async () => {
   assert.match(response.error, /not found/i);
 });
 
-test("both players receive the round once the battle starts", async () => {
+test("the battle starts automatically when the second player joins", async () => {
   const { host, guest } = await setupRoom();
 
-  host.socket.emit("start-battle");
-
+  await waitUntil(
+    () =>
+      host.state.room?.phase === "countdown" ||
+      host.state.room?.phase === "playing",
+    { message: "battle to start without a start-battle event" }
+  );
   await waitForPlaying(host);
   await waitForPlaying(guest);
 
@@ -322,10 +354,10 @@ test("both players receive the round once the battle starts", async () => {
 
 test("damage is calculated on the server and client values are ignored", async () => {
   const { host, guest } = await setupRoom();
-  host.socket.emit("start-battle");
   await waitForPlaying(guest);
 
   const marker = guest.state.updates.length;
+  await sleep(MIN_REACTION_WAIT);
   const { currentRound } = guest.state.room;
 
   guest.socket.emit("submit-letter", {
@@ -354,7 +386,6 @@ test("damage is calculated on the server and client values are ignored", async (
 
 test("wrong letters and stale round ids do not resolve the round", async () => {
   const { host, guest } = await setupRoom();
-  host.socket.emit("start-battle");
   await waitForPlaying(guest);
 
   const { currentRound } = guest.state.room;
@@ -374,10 +405,10 @@ test("wrong letters and stale round ids do not resolve the round", async () => {
 
 test("only the first correct answer resolves a round", async () => {
   const { host, guest } = await setupRoom();
-  host.socket.emit("start-battle");
   await waitForPlaying(guest);
 
   const marker = guest.state.updates.length;
+  await sleep(MIN_REACTION_WAIT);
   const { currentRound } = guest.state.room;
 
   guest.socket.emit("submit-letter", {
@@ -407,12 +438,12 @@ test("only the first correct answer resolves a round", async () => {
 
 test("a finished match is persisted once with atomic statistics", async () => {
   const { host, guest } = await setupRoom();
-  host.socket.emit("start-battle");
 
   for (let round = 0; round < 60; round += 1) {
     await waitForPlaying(guest);
 
     const marker = guest.state.updates.length;
+    await sleep(MIN_REACTION_WAIT);
     const { currentRound } = guest.state.room;
 
     guest.socket.emit("submit-letter", {
@@ -481,10 +512,10 @@ test("re-saving the same match key never double-counts", async () => {
 
 test("leaving mid-battle records an abandonment and notifies the survivor", async () => {
   const { host, guest } = await setupRoom();
-  host.socket.emit("start-battle");
   await waitForPlaying(host);
+  await resolveRound(host);
 
-  guest.socket.disconnect();
+  guest.socket.emit("leave-room");
 
   await waitUntil(() => host.state.playerLeft !== null, {
     message: "player-left notice",
@@ -506,6 +537,60 @@ test("leaving mid-battle records an abandonment and notifies the survivor", asyn
   assert.equal(survivor.matchesPlayed, 1);
   assert.equal(leaver.losses, 1);
   assert.equal(leaver.matchesPlayed, 1);
+});
+
+test("a brief disconnect pauses the seat and can be resumed", async () => {
+  const { host, guest, joined } = await setupRoom();
+  await waitForPlaying(host);
+
+  // Drop the guest's connection without leaving the room.
+  guest.socket.disconnect();
+
+  await waitUntil(
+    () => playerBySlot(host.state.room, 2)?.connected === false,
+    { message: "seat marked disconnected" }
+  );
+
+  // No abandonment should be recorded inside the grace window.
+  assert.equal(await Match.countDocuments({ roomCode: host.state.room.code }), 0);
+
+  // Reconnect with the same session id and reclaim the seat.
+  const resumed = await connectClient();
+  const result = await emitAck(resumed.socket, "resume-session", {
+    sessionId: joined.sessionId,
+  });
+
+  assert.equal(result.ok, true);
+  await waitUntil(
+    () => playerBySlot(resumed.state.room, 2)?.connected === true,
+    { message: "seat resumed" }
+  );
+  assert.equal(resumed.state.room.players.length, 2);
+});
+
+test("an unrecovered disconnect is punished after the grace period", async () => {
+  const { host, guest } = await setupRoom();
+  await waitForPlaying(host);
+  await resolveRound(host);
+
+  guest.socket.disconnect();
+
+  await waitUntil(() => host.state.playerLeft !== null, {
+    message: "player-left after grace",
+    timeout: 5000,
+  });
+
+  await waitUntil(
+    async () =>
+      (await Match.countDocuments({ roomCode: host.state.room.code })) === 1,
+    { message: "abandonment saved after grace", timeout: 8000 }
+  );
+
+  const survivor = await Player.findOne({ usernameKey: HOST_KEY });
+  const leaver = await Player.findOne({ usernameKey: GUEST_KEY });
+
+  assert.equal(survivor.wins, 1);
+  assert.equal(leaver.losses, 1);
 });
 
 test("flooding create-room is rate limited", async () => {

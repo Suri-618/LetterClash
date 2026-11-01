@@ -22,6 +22,7 @@ const matchSchema = new mongoose.Schema(
         },
         username: { type: String, required: true },
         finalHP: { type: Number, default: 0 },
+        ratingChange: { type: Number, default: 0 },
       },
     ],
 
@@ -45,5 +46,6 @@ const matchSchema = new mongoose.Schema(
 );
 
 matchSchema.index({ completedAt: -1 });
+matchSchema.index({ "players.playerId": 1, completedAt: -1 });
 
 module.exports = mongoose.model("Match", matchSchema);

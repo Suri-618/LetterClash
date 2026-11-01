@@ -29,34 +29,37 @@ export default function ArcadeFighter({
       }, POSE_FRAME_DURATION.idle);
     };
 
-    setFrame(0);
-    setDisplayPose(pose);
+    const resetTimer = window.setTimeout(() => {
+      setFrame(0);
+      setDisplayPose(pose);
+    }, 0);
 
     if (pose === "idle") {
       timer = window.setInterval(() => {
         currentFrame = (currentFrame + 1) % FRAME_COUNT;
         setFrame(currentFrame);
       }, duration);
+    } else {
+      timer = window.setInterval(() => {
+        currentFrame += 1;
 
-      return () => window.clearInterval(timer);
+        if (currentFrame >= FRAME_COUNT) {
+          window.clearInterval(timer);
+          setFrame(0);
+          setDisplayPose("idle");
+          currentFrame = 0;
+          loopIdle();
+          return;
+        }
+
+        setFrame(currentFrame);
+      }, duration);
     }
 
-    timer = window.setInterval(() => {
-      currentFrame += 1;
-
-      if (currentFrame >= FRAME_COUNT) {
-        window.clearInterval(timer);
-        setFrame(0);
-        setDisplayPose("idle");
-        currentFrame = 0;
-        loopIdle();
-        return;
-      }
-
-      setFrame(currentFrame);
-    }, duration);
-
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(resetTimer);
+    };
   }, [pose, animationId, frameDuration]);
 
   const src = `/sprites/transparent-frames/${color}/${displayPose}/frame-${String(
@@ -67,8 +70,11 @@ export default function ArcadeFighter({
     <img
       className={`arcade-fighter-sprite ${className}`}
       src={src}
-      alt={`${color.replace("-fighter", "")} fighter ${displayPose}`}
+      alt=""
+      aria-hidden="true"
       draggable={false}
+      loading="eager"
+      decoding="async"
       style={{
         transform: facing === "left" ? "scaleX(-1)" : "none",
         imageRendering: "pixelated",

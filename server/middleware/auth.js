@@ -13,7 +13,9 @@ async function requireAuth(req, res, next) {
       });
     }
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     if (
       typeof payload.sub !== "string" ||

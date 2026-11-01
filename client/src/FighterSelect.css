@@ -1,0 +1,593 @@
+.fighter-select-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 2px solid #313a2c;
+  background: #090d09;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% 100%,
+    18px 100%,
+    0 calc(100% - 18px)
+  );
+}
+
+.fighter-select-shell::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(110deg, #0c120d 0%, #0a0d09 55%, var(--fighter-color)12 100%),
+    repeating-linear-gradient(0deg, transparent 0 3px, #ffffff05 3px 4px);
+  pointer-events: none;
+}
+
+.fighter-select-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  min-height: clamp(330px, 38vw, 420px);
+  padding: clamp(18px, 3vw, 34px) clamp(18px, 3.5vw, 44px);
+}
+
+.fighter-select-hero::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #090d09f5 0%, #090d09c9 36%, transparent 65%),
+    linear-gradient(0deg, #090d09 0%, transparent 34%);
+  pointer-events: none;
+}
+
+.fighter-select-gridlines {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  opacity: 0.45;
+  background:
+    linear-gradient(90deg, transparent 49.8%, #e4cf7b18 50%, transparent 50.2%),
+    linear-gradient(0deg, transparent 49.8%, #e4cf7b12 50%, transparent 50.2%);
+  background-size: 68px 68px;
+  mask-image: linear-gradient(90deg, transparent, #000 45%, #000);
+  pointer-events: none;
+}
+
+.fighter-select-preview {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 62%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fighter-select-preview::before {
+  content: "";
+  position: absolute;
+  left: 11%;
+  bottom: 9%;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--fighter-glow)24 0%,
+    var(--fighter-color)14 42%,
+    transparent 68%
+  );
+  filter: blur(8px);
+}
+
+.fighter-select-preview img {
+  position: absolute;
+  right: 8%;
+  bottom: -4%;
+  height: 96%;
+  max-width: 78%;
+  object-fit: contain;
+  object-position: bottom right;
+  filter:
+    drop-shadow(0 24px 18px #000000b8)
+    drop-shadow(0 0 34px var(--fighter-color)33);
+  transform-origin: bottom center;
+  animation: fighter-preview-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.fighter-select-ghost {
+  position: absolute;
+  top: -2%;
+  right: 7%;
+  color: var(--fighter-color);
+  font: 400 clamp(160px, 22vw, 300px) / 0.8 "Anton", Impact, sans-serif;
+  letter-spacing: -0.06em;
+  opacity: 0.08;
+  user-select: none;
+}
+
+.fighter-select-vert {
+  position: absolute;
+  top: 9%;
+  right: 2%;
+  color: var(--fighter-color);
+  font: 700 9px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.5em;
+  opacity: 0.7;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+.fighter-select-nameplate {
+  position: absolute;
+  z-index: 2;
+  right: 9%;
+  bottom: 8%;
+  display: grid;
+  justify-items: end;
+  padding: 6px 10px;
+  background: #080b08d9;
+  border-right: 4px solid var(--fighter-color);
+  transform: skewX(-6deg);
+}
+
+.fighter-select-nameplate small {
+  color: var(--fighter-color);
+  font: 700 8px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.28em;
+}
+
+.fighter-select-nameplate strong {
+  color: #f7f2d8;
+  font: 400 clamp(24px, 2.8vw, 38px) / 0.95 "Anton", Impact, sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.fighter-select-bio {
+  position: relative;
+  z-index: 3;
+  width: min(100%, 470px);
+  align-self: center;
+}
+
+.fighter-select-kicker {
+  margin: 0 0 4px;
+  color: var(--fighter-color);
+  font: 700 9px/1.3 "Chakra Petch", sans-serif;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.fighter-select-bio h3 {
+  margin: 0 0 14px;
+  color: #f7f2d8;
+  font: 400 clamp(52px, 7.2vw, 102px) / 0.82 "Anton", Impact, sans-serif;
+  letter-spacing: -0.02em;
+  text-shadow:
+    4px 4px 0 #10140c,
+    0 0 28px var(--fighter-color)22;
+}
+
+.fighter-select-ability,
+.fighter-select-special {
+  position: relative;
+  max-width: 390px;
+  padding: 9px 0 9px 15px;
+  border-left: 2px solid var(--fighter-color);
+}
+
+.fighter-select-ability + .fighter-select-special {
+  margin-top: 7px;
+  border-left-color: #584b2a;
+}
+
+.fighter-select-ability > span,
+.fighter-select-special > span {
+  display: block;
+  margin-bottom: 3px;
+  color: #8b917e;
+  font: 700 8px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.3em;
+}
+
+.fighter-select-ability strong {
+  display: block;
+  color: var(--fighter-color);
+  font: 700 13px/1.2 "Chakra Petch", sans-serif;
+  letter-spacing: 0.13em;
+}
+
+.fighter-select-ability p,
+.fighter-select-special p {
+  margin: 4px 0 0;
+  color: #c4c8b6;
+  font: 500 11px/1.55 "Chakra Petch", sans-serif;
+}
+
+.fighter-select-special p {
+  color: #9da28f;
+  font-size: 10px;
+}
+
+.fighter-select-locked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: #8d947f;
+  font: 700 9px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.22em;
+}
+
+.fighter-select-locked i {
+  width: 7px;
+  height: 7px;
+  background: #4c5245;
+  box-shadow: 0 0 0 3px #4c524522;
+}
+
+.fighter-select-locked i.is-live {
+  background: var(--fighter-color);
+  box-shadow: 0 0 12px var(--fighter-color);
+}
+
+.fighter-select-picker {
+  position: relative;
+  z-index: 4;
+  padding: 28px clamp(14px, 2.5vw, 28px) 16px;
+  border-top: 2px solid #333c2c;
+  background:
+    linear-gradient(180deg, #0b100b 0%, #070a07 100%);
+}
+
+.fighter-select-picker::before {
+  content: "SELECT YOUR FIGHTER";
+  position: absolute;
+  top: -9px;
+  left: clamp(18px, 3vw, 34px);
+  padding: 2px 8px;
+  background: #e4cf7b;
+  color: #101309;
+  font: 700 8px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.22em;
+  transform: skewX(-8deg);
+}
+
+.fighter-select-grid-wrap {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.fighter-select-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fighter-select-cursor {
+  position: absolute;
+  z-index: 6;
+  top: -21px;
+  left: calc((var(--cursor-col) + 0.5) * 25%);
+  padding: 2px 6px;
+  background: #e4cf7b;
+  color: #111309;
+  font: 700 8px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.18em;
+  transform: translateX(-50%);
+  transition: none;
+  pointer-events: none;
+}
+
+.fighter-select-cursor::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  border: 5px solid transparent;
+  border-top-color: #e4cf7b;
+  translate: -50% 0;
+}
+
+.fighter-select-card {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44%;
+  align-items: end;
+  height: clamp(86px, 9vw, 116px);
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px 9px;
+  color: #e9e5d1;
+  background:
+    linear-gradient(145deg, #182018 0%, #0b100b 68%),
+    #0b100b;
+  border: 2px solid #333c2c;
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 110ms ease,
+    background 110ms ease,
+    transform 110ms ease;
+}
+
+.fighter-select-card:hover,
+.fighter-select-card.is-active {
+  border-color: var(--fighter-color);
+  background:
+    radial-gradient(ellipse at 76% 65%, var(--fighter-color)2b, transparent 60%),
+    linear-gradient(145deg, #1b251b 0%, #0b100b 74%);
+}
+
+.fighter-select-card.is-active {
+  transform: translateY(-2px);
+}
+
+.fighter-select-card:focus-visible {
+  outline: 3px solid #f7f2d8;
+  outline-offset: 2px;
+}
+
+.fighter-select-card-number {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  left: 8px;
+  color: var(--fighter-color);
+  font: 400 15px/1 "Anton", Impact, sans-serif;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.fighter-select-card-art {
+  position: absolute;
+  z-index: 1;
+  right: -3%;
+  bottom: -9%;
+  width: 61%;
+  height: 108%;
+  pointer-events: none;
+}
+
+.fighter-select-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter:
+    drop-shadow(0 7px 5px #000000b8)
+    saturate(0.92);
+  transform: scale(0.98);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.fighter-select-card.is-active .fighter-select-card-art img {
+  filter:
+    drop-shadow(0 7px 5px #000000b8)
+    drop-shadow(0 0 12px var(--fighter-color)44)
+    saturate(1.06);
+  transform: scale(1.04);
+}
+
+.fighter-select-card-copy {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-self: end;
+  gap: 2px;
+  max-width: 62%;
+  padding-bottom: 1px;
+}
+
+.fighter-select-card-copy strong {
+  color: #f4efd9;
+  font: 400 clamp(16px, 1.6vw, 21px) / 0.95 "Anton", Impact, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.fighter-select-card-copy small {
+  overflow: hidden;
+  color: #8f9783;
+  font: 700 7px/1.2 "Chakra Petch", sans-serif;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fighter-select-card.is-selected {
+  box-shadow:
+    inset 0 0 0 1px var(--fighter-color),
+    0 0 20px var(--fighter-color)1f;
+}
+
+.fighter-select-card.is-selected .fighter-select-card-copy strong {
+  color: var(--fighter-color);
+}
+
+.fighter-select-stamp {
+  position: absolute;
+  z-index: 6;
+  top: 7px;
+  right: 6px;
+  padding: 3px 5px 2px;
+  border: 1px solid #f7f2d8c7;
+  color: #f7f2d8;
+  font: 700 7px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.16em;
+  transform: rotate(4deg);
+  animation: fighter-lock-stamp 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: none;
+}
+
+.fighter-select-flash {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  background: #fff9df;
+  opacity: 0;
+  animation: fighter-card-flash 220ms ease-out both;
+  pointer-events: none;
+}
+
+.fighter-select-hint {
+  margin: 12px 0 0;
+  color: #666e60;
+  font: 700 8px/1 "Chakra Petch", sans-serif;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+.fighter-select-hint span {
+  color: #c7b96f;
+}
+
+.fighter-select-controls {
+  margin-top: 20px;
+}
+
+@keyframes fighter-preview-in {
+  from { opacity: 0; transform: translateX(6%) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes fighter-lock-stamp {
+  from { opacity: 0; transform: rotate(4deg) scale(1.8); }
+  to { opacity: 1; transform: rotate(4deg) scale(1); }
+}
+
+@keyframes fighter-card-flash {
+  0% { opacity: 0.75; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 900px) {
+  .fighter-select-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .fighter-select-bio h3 {
+    font-size: clamp(48px, 8vw, 78px);
+  }
+
+  .fighter-select-preview {
+    width: 58%;
+  }
+
+  .fighter-select-cursor {
+    display: none;
+  }
+
+  .fighter-select-picker {
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .fighter-select-hero {
+    display: block;
+    min-height: 360px;
+    padding: 20px 18px 18px;
+  }
+
+  .fighter-select-hero::after {
+    background:
+      linear-gradient(0deg, #090d09 0%, #090d09d9 36%, #090d0966 100%),
+      linear-gradient(90deg, #090d09 0%, transparent 86%);
+  }
+
+  .fighter-select-preview {
+    width: 100%;
+    opacity: 0.52;
+  }
+
+  .fighter-select-preview img {
+    right: -2%;
+    height: 92%;
+    max-width: 68%;
+  }
+
+  .fighter-select-ghost {
+    right: 0;
+    font-size: 190px;
+  }
+
+  .fighter-select-nameplate {
+    display: none;
+  }
+
+  .fighter-select-bio {
+    width: 100%;
+    padding-top: 8px;
+  }
+
+  .fighter-select-bio h3 {
+    margin-bottom: 12px;
+    font-size: clamp(54px, 17vw, 84px);
+  }
+
+  .fighter-select-ability,
+  .fighter-select-special {
+    max-width: 78%;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    background: #090d09b8;
+  }
+
+  .fighter-select-special {
+    display: none;
+  }
+
+  .fighter-select-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fighter-select-card {
+    height: 92px;
+  }
+
+  .fighter-select-card-copy strong {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .fighter-select-hero {
+    min-height: 330px;
+  }
+
+  .fighter-select-ability {
+    max-width: 100%;
+  }
+
+  .fighter-select-card {
+    height: 84px;
+    padding: 6px 7px;
+  }
+
+  .fighter-select-card-art {
+    width: 66%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fighter-select-preview img,
+  .fighter-select-stamp,
+  .fighter-select-flash {
+    animation: none;
+  }
+
+  .fighter-select-card,
+  .fighter-select-card-art img {
+    transition: none;
+  }
+}

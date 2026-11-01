@@ -1,5 +1,13 @@
 import { io } from "socket.io-client";
-import { SERVER_URL } from "./config";
+import { SERVER_URL, SESSION_STORAGE_KEY } from "./config";
+
+function readSessionId() {
+  try {
+    return sessionStorage.getItem(SESSION_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
 
 export const socket = io(SERVER_URL, {
   autoConnect: false,
@@ -15,6 +23,6 @@ export const socket = io(SERVER_URL, {
       token = "";
     }
 
-    callback({ token });
+    callback({ token, sessionId: readSessionId() });
   },
 });
