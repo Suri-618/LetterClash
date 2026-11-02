@@ -7,7 +7,6 @@ export const FIGHTER_ROSTER = [
     color: "#f0b429",
     glow: "#ffe6a3",
     image: "/images/fighters/kai.png",
-    model: "/models/fighters/kai.glb",
     ability: "VOWEL SURGE",
     description:
       "Each vowel in your word adds +2 damage. Super meter charges 10% faster.",
@@ -22,7 +21,6 @@ export const FIGHTER_ROSTER = [
     color: "#24cce9",
     glow: "#b8f7ff",
     image: "/images/fighters/maya.png",
-    model: "/models/fighters/maya.glb",
     ability: "COMBO FLURRY",
     description:
       "Words of 5+ letters land a double hit spark for +6 bonus damage.",
@@ -37,7 +35,6 @@ export const FIGHTER_ROSTER = [
     color: "#36d88c",
     glow: "#b9ffdc",
     image: "/images/fighters/syntax.png",
-    model: "/models/fighters/syntax.glb",
     ability: "IRON CONSONANT",
     description:
       "Takes 15% less damage. Rare tiles (J, Q, X, Z, K) add +3 damage each.",
@@ -52,7 +49,6 @@ export const FIGHTER_ROSTER = [
     color: "#c45bfa",
     glow: "#ecc4ff",
     image: "/images/fighters/void.png",
-    model: "/models/fighters/void.glb",
     ability: "CRITICAL STRIKE",
     description:
       "Words of 6+ letters have a 40% chance to critically strike for 1.75x damage.",
@@ -67,33 +63,4 @@ export const FIGHTER_BY_ID = Object.fromEntries(
 
 export function getFighter(id) {
   return FIGHTER_BY_ID[id] || FIGHTER_ROSTER[0];
-}
-
-const CLIP_PATTERNS = {
-  idle: /idle/i,
-  punch: /punch|attack|slash/i,
-  hit: /hit|receive|damage|stagger|impact/i,
-  death: /death|die|ko|fall/i,
-  victory: /victory|win|clap|taunt/i,
-  guard: /guard|block|shield/i,
-  ready: /stand|ready|battle/i,
-  run: /run|walk/i,
-  jump: /jump/i,
-};
-
-export function findClip(clips, role, fallbacks = []) {
-  const pattern = CLIP_PATTERNS[role];
-  if (pattern) {
-    const direct = clips.find((clip) => pattern.test(clip.name));
-    if (direct) return direct;
-  }
-
-  for (const fallback of fallbacks) {
-    const clipPattern = CLIP_PATTERNS[fallback];
-    if (!clipPattern) continue;
-    const clip = clips.find((entry) => clipPattern.test(entry.name));
-    if (clip) return clip;
-  }
-
-  return null;
 }

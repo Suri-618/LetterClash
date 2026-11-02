@@ -2802,3 +2802,26 @@
     animation-duration: 1ms;
   }
 }
+
+/* Phaser combat effects layer */
+.fs-root .fs-stage .fight-effects-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.fs-root .fs-stage .fight-effects-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
+/* Keep fighters above the Phaser effects layer */
+.fs-root .fs-stage .arcade-fighter {
+  z-index: 3;
+}

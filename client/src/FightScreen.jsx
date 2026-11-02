@@ -3,6 +3,7 @@ import ArcadeFighter from "./ArcadeFighter.jsx";
 import MatchupIntro from "./fight/MatchupIntro.jsx";
 import { getFighter } from "./fight/fighterConfig.js";
 import ResultOverlay from "./ResultOverlay.jsx";
+import FightEffects from "./FightEffects.jsx";
 import "./FightScreen.css";
 
 // Matches the damage tiers in server/game/rules.js
@@ -270,6 +271,12 @@ export default function FightScreen({
 
       {/* ---------- STAGE ---------- */}
       <div className="arcade-fight-stage fs-stage">
+        <FightEffects
+          combatEffect={combatEffect}
+          defenderSlot={defenderSlot}
+          reducedMotion={reducedMotion}
+        />
+
         {roster.map((player) => {
           const isPurple = player.slot === 2;
           const fighterColor =
