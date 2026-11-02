@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 
@@ -22,23 +21,20 @@ export default function FightEffects({
 
       create() {
         sceneRef.current = this;
-        this.scale.on("resize", this.handleResize, this);
-      }
-
-      handleResize() {
-        // Phaser automatically updates its canvas dimensions.
       }
 
       burst(x, y, damage) {
+        const intensity = Phaser.Math.Clamp(damage / 30, 0.5, 1);
         const count = Phaser.Math.Clamp(
           Math.round(12 + damage * 0.8),
           12,
           36
         );
 
+        // Particle burst
         for (let i = 0; i < count; i += 1) {
           const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-          const speed = Phaser.Math.Between(55, 190);
+          const speed = Phaser.Math.Between(55, 190) * intensity;
           const size = Phaser.Math.Between(2, 5);
 
           const particle = this.add.circle(
@@ -68,17 +64,50 @@ export default function FightEffects({
           });
         }
 
+        // Expanding outer impact ring
         const ring = this.add.circle(x, y, 12, 0xffffff, 0);
         ring.setStrokeStyle(4, 0xffd166, 1);
 
         this.tweens.add({
           targets: ring,
-          radius: 75,
+          radius: 75 + damage * 0.5,
           alpha: 0,
           duration: 350,
           ease: "Cubic.Out",
           onComplete: () => ring.destroy(),
         });
+
+        // Crimson impact flash
+        const flash = this.add.circle(x, y, 24, 0xe34432, 0.75);
+        flash.setBlendMode(Phaser.BlendModes.ADD);
+
+        this.tweens.add({
+          targets: flash,
+          scale: 2.2 + intensity * 0.5,
+          alpha: 0,
+          duration: 180,
+          ease: "Cubic.Out",
+          onComplete: () => flash.destroy(),
+        });
+
+        // Bright central impact core
+        const core = this.add.circle(x, y, 10, 0xffffff, 0.95);
+        core.setBlendMode(Phaser.BlendModes.ADD);
+
+        this.tweens.add({
+          targets: core,
+          scale: 2.8 + intensity,
+          alpha: 0,
+          duration: 120,
+          ease: "Cubic.Out",
+          onComplete: () => core.destroy(),
+        });
+
+        // Short camera shake, scaled by damage.
+        this.cameras.main.shake(
+          110 + damage * 2,
+          0.0015 + intensity * 0.002
+        );
       }
     }
 

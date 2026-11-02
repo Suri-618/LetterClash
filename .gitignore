@@ -19,4 +19,7 @@ client/public/Guileref.jpg
 client/public/juriref.png
 client/public/kairef.png
 
+# Local audio sources (trimmed game sounds live in client/public/sounds)
+client/audio-source/
+
 client/build-debug.txt

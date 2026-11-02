@@ -8,6 +8,30 @@ let musicEnabled = false;
 let nextNoteTime = 0;
 let musicVolume = 0.25;
 let sfxVolume = 0.8;
+let hitSounds = null;
+
+function createHitAudio(src, volume) {
+  if (typeof Audio === "undefined") return null;
+
+  const audio = new Audio(src);
+  audio.preload = "auto";
+  audio.volume = volume;
+  audio.load();
+  return audio;
+}
+
+function getHitSounds() {
+  if (!hitSounds) {
+    const base = import.meta.env.BASE_URL;
+
+    hitSounds = {
+      left: createHitAudio(`${base}sounds/hit-left.wav`, 0.52),
+      right: createHitAudio(`${base}sounds/hit-right.wav`, 0.48),
+    };
+  }
+
+  return hitSounds;
+}
 
 function getAudioContext() {
   if (!audioContext) {
@@ -42,6 +66,13 @@ export async function enableAudio() {
 
     if (ctx.state === "suspended") {
       await ctx.resume();
+    }
+
+    // Start loading the sample-based hit sounds as soon as sound is enabled.
+    try {
+      getHitSounds();
+    } catch {
+      // The tone-based sounds can still work even if samples cannot load.
     }
 
     return true;
@@ -90,14 +121,24 @@ function playTone({
   oscillator.stop(now + duration + 0.02);
 }
 
-export function playHit() {
-  playTone({
-    frequency: 180,
-    slideTo: 65,
-    duration: 0.18,
-    type: "sawtooth",
-    volume: 0.45,
-  });
+export function playHit(side = "left") {
+  const sounds = getHitSounds();
+  const audio = side === "right" ? sounds.right : sounds.left;
+
+  if (!audio) return;
+
+  try {
+    audio.currentTime = 0;
+    const playback = audio.play();
+
+    if (playback && typeof playback.catch === "function") {
+      // Autoplay policies can still block playback; never surface that as
+      // an unhandled rejection during a match.
+      playback.catch(() => {});
+    }
+  } catch {
+    // Ignore playback failures and keep the match running.
+  }
 }
 
 export function playAttack() {

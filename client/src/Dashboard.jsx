@@ -55,6 +55,10 @@ export default function Dashboard({ authState, game }) {
 
   const players = room?.players || [];
   const me = players.find((player) => player.id === playerId);
+  const hitSide =
+    players.find((player) => player.id === room?.lastResult?.defenderId)?.slot === 2
+      ? "right"
+      : "left";
   const inBattle = room && room.phase !== "waiting";
   const hasRoom = Boolean(room);
 
@@ -92,8 +96,8 @@ export default function Dashboard({ authState, game }) {
     const key = result.resultId || `${result.attackerId}-${result.damage}`;
     if (hitResultRef.current === key) return;
     hitResultRef.current = key;
-    playHit();
-  }, [room?.lastResult, soundEnabled]);
+    playHit(hitSide);
+  }, [room?.lastResult, soundEnabled, hitSide]);
 
   useEffect(() => {
     if (!soundEnabled || room?.phase !== "finished") {
