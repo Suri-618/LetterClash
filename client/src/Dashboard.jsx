@@ -213,7 +213,7 @@ export default function Dashboard({ authState, game }) {
   return (
     <main className="app-shell dashboard-shell">
       <header className="topbar">
-        <Link className="brand" to="/game">
+        <Link className="brand" to="/">
           <span className="brand-icon">⚔</span>
           LETTER<span>CLASH</span>
         </Link>
