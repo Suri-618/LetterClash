@@ -15,6 +15,13 @@ function gradeFor(damage) {
   return "SLOW";
 }
 
+function comboTier(combo) {
+  if (combo >= 4) return 4;
+  if (combo >= 3) return 3;
+  if (combo >= 2) return 2;
+  return 0;
+}
+
 const FIGHTER_SPRITES = {
   kai: "kai",
   maya: "maya",
@@ -111,13 +118,13 @@ function PlayerPanel({ player, side, isMe, combo, maxHp }) {
         </div>
       </div>
 
-      <div className="fs-combo-row">
+      <div className="fs-combo-row" aria-live="polite">
         {combo >= 2 && (
           <span
-            className={`fs-combo${combo >= 3 ? " is-hot" : ""}`}
+            className={`fs-combo fs-combo-tier-${comboTier(combo)}`}
             key={combo}
           >
-            {combo} HIT COMBO
+            <strong>{combo}</strong> HIT COMBO
           </span>
         )}
       </div>
@@ -144,6 +151,7 @@ export default function FightScreen({
   );
   const maxHp = room.maxHp || 200;
   const [showResult, setShowResult] = useState(false);
+  const [stageImpact, setStageImpact] = useState(false);
 
   const roster = [...players].sort((a, b) => a.slot - b.slot);
   const left = roster.find((p) => p.slot === 1);
@@ -202,6 +210,18 @@ export default function FightScreen({
     return () => clearTimeout(timer);
   }, [phase, room.matchNumber, reducedMotion]);
 
+  useEffect(() => {
+    if (!combatEffect?.id || reducedMotion) return;
+
+    setStageImpact(true);
+
+    const timeoutId = window.setTimeout(() => {
+      setStageImpact(false);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [combatEffect?.id, reducedMotion]);
+
   const countdown = room.countdownEndsAt
     ? Math.max(0, Math.ceil((room.countdownEndsAt - now) / 1000))
     : 0;
@@ -230,6 +250,20 @@ export default function FightScreen({
     (p) => p.id === combatEffect?.defenderId
   )?.slot;
   const impactSide = defenderSlot === 2 ? "right" : "left";
+  const hitCombo =
+    combatEffect?.combo ??
+    (combatEffect ? combos[combatEffect.attackerId] || 0 : 0);
+  const hitComboTier = comboTier(hitCombo);
+  const finisherHit = Boolean(combatEffect?.isFinisher);
+  const stageClass = [
+    "arcade-fight-stage",
+    "fs-stage",
+    stageImpact ? "stage-impact-shake" : "",
+    hitComboTier >= 2 ? `combo-impact-${hitComboTier}` : "",
+    finisherHit ? "is-finisher-hit" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="fs-root">
@@ -270,12 +304,43 @@ export default function FightScreen({
       </div>
 
       {/* ---------- STAGE ---------- */}
-      <div className="arcade-fight-stage fs-stage">
+      <div className={stageClass}>
         <FightEffects
           combatEffect={combatEffect}
           defenderSlot={defenderSlot}
           reducedMotion={reducedMotion}
         />
+
+        {combatEffect && hitComboTier >= 2 && (
+          <div
+            className={`fs-combo-burst fs-combo-burst-${hitComboTier}${
+              finisherHit ? " is-finisher" : ""
+            }`}
+            key={`combo-burst-${combatEffect.id}`}
+            aria-hidden="true"
+          />
+        )}
+
+        {combatEffect && hitComboTier >= 2 && (
+          <div
+            className={`fs-combo-callout fs-combo-callout-${hitComboTier}${
+              finisherHit ? " is-finisher" : ""
+            }`}
+            key={`combo-callout-${combatEffect.id}`}
+            aria-hidden="true"
+          >
+            <strong>{hitCombo} HIT</strong>
+            <span>COMBO</span>
+          </div>
+        )}
+
+        {finisherHit && (
+          <div
+            className="fs-finisher-flash"
+            key={`finisher-${combatEffect.id}`}
+            aria-hidden="true"
+          />
+        )}
 
         {roster.map((player) => {
           const isPurple = player.slot === 2;
@@ -291,7 +356,13 @@ export default function FightScreen({
             `arcade-fighter-${player.fighter || (isPurple ? "purple" : "cyan")}`,
             isPurple ? "arcade-fighter-purple" : "arcade-fighter-cyan",
             isPurple ? "faces-left" : "faces-right",
-            combo >= 3 ? "combo-hot" : "",
+            combo >= 4
+              ? "combo-warm combo-hot combo-blaze"
+              : combo >= 3
+                ? "combo-hot"
+                : combo >= 2
+                  ? "combo-warm"
+                  : "",
             isAttacking ? "fighter-punch" : "",
             isHit ? "fighter-recoil" : "",
             isHit ? (isPurple ? "recoil-right" : "recoil-left") : "",
@@ -325,11 +396,14 @@ export default function FightScreen({
 
         {combatEffect && defenderSlot && (
           <div
-            className={`fs-damage is-${impactSide}`}
+            className={`fs-damage is-${impactSide}${
+              hitComboTier >= 2 ? ` combo-${hitComboTier}` : ""
+            }${finisherHit ? " is-finisher" : ""}`}
             key={`damage-${combatEffect.id}`}
           >
             <b>−{combatEffect.damage}</b>
             <i>{gradeFor(combatEffect.damage)}</i>
+            {finisherHit && <em className="fs-finisher-label">FINISH</em>}
           </div>
         )}
 

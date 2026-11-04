@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 
+const MAX_ACTIVE_EFFECTS = 120;
+
 export default function FightEffects({
   combatEffect,
   defenderSlot,
@@ -17,14 +19,30 @@ export default function FightEffects({
     class EffectsScene extends Phaser.Scene {
       constructor() {
         super("FightEffects");
+        this.activeEffects = new Set();
       }
 
       create() {
         sceneRef.current = this;
       }
 
+      createEffect(x, y, radius, color, alpha = 1) {
+        if (this.activeEffects.size >= MAX_ACTIVE_EFFECTS) {
+          return null;
+        }
+
+        const effect = this.add.circle(x, y, radius, color, alpha);
+        this.activeEffects.add(effect);
+
+        effect.once("destroy", () => {
+          this.activeEffects.delete(effect);
+        });
+
+        return effect;
+      }
+
       burst(x, y, damage) {
-        const intensity = Phaser.Math.Clamp(damage / 30, 0.5, 1);
+        const intensity = Phaser.Math.Clamp(damage / 30, 0.35, 1);
         const count = Phaser.Math.Clamp(
           Math.round(12 + damage * 0.8),
           12,
@@ -37,7 +55,7 @@ export default function FightEffects({
           const speed = Phaser.Math.Between(55, 190) * intensity;
           const size = Phaser.Math.Between(2, 5);
 
-          const particle = this.add.circle(
+          const particle = this.createEffect(
             x,
             y,
             size,
@@ -46,9 +64,10 @@ export default function FightEffects({
               0xff8c42,
               0xffffff,
               0xe34432,
-            ]),
-            1
+            ])
           );
+
+          if (!particle) break;
 
           particle.setBlendMode(Phaser.BlendModes.ADD);
 
@@ -65,45 +84,53 @@ export default function FightEffects({
         }
 
         // Expanding outer impact ring
-        const ring = this.add.circle(x, y, 12, 0xffffff, 0);
-        ring.setStrokeStyle(4, 0xffd166, 1);
+        const ring = this.createEffect(x, y, 12, 0xffffff, 0);
 
-        this.tweens.add({
-          targets: ring,
-          radius: 75 + damage * 0.5,
-          alpha: 0,
-          duration: 350,
-          ease: "Cubic.Out",
-          onComplete: () => ring.destroy(),
-        });
+        if (ring) {
+          ring.setStrokeStyle(4, 0xffd166, 1);
+
+          this.tweens.add({
+            targets: ring,
+            radius: 75 + damage * 0.5,
+            alpha: 0,
+            duration: 350,
+            ease: "Cubic.Out",
+            onComplete: () => ring.destroy(),
+          });
+        }
 
         // Crimson impact flash
-        const flash = this.add.circle(x, y, 24, 0xe34432, 0.75);
-        flash.setBlendMode(Phaser.BlendModes.ADD);
+        const flash = this.createEffect(x, y, 24, 0xe34432, 0.75);
 
-        this.tweens.add({
-          targets: flash,
-          scale: 2.2 + intensity * 0.5,
-          alpha: 0,
-          duration: 180,
-          ease: "Cubic.Out",
-          onComplete: () => flash.destroy(),
-        });
+        if (flash) {
+          flash.setBlendMode(Phaser.BlendModes.ADD);
+
+          this.tweens.add({
+            targets: flash,
+            scale: 2.2 + intensity * 0.5,
+            alpha: 0,
+            duration: 180,
+            ease: "Cubic.Out",
+            onComplete: () => flash.destroy(),
+          });
+        }
 
         // Bright central impact core
-        const core = this.add.circle(x, y, 10, 0xffffff, 0.95);
-        core.setBlendMode(Phaser.BlendModes.ADD);
+        const core = this.createEffect(x, y, 10, 0xffffff, 0.95);
 
-        this.tweens.add({
-          targets: core,
-          scale: 2.8 + intensity,
-          alpha: 0,
-          duration: 120,
-          ease: "Cubic.Out",
-          onComplete: () => core.destroy(),
-        });
+        if (core) {
+          core.setBlendMode(Phaser.BlendModes.ADD);
 
-        // Short camera shake, scaled by damage.
+          this.tweens.add({
+            targets: core,
+            scale: 2.8 + intensity,
+            alpha: 0,
+            duration: 120,
+            ease: "Cubic.Out",
+            onComplete: () => core.destroy(),
+          });
+        }
+
         this.cameras.main.shake(
           110 + damage * 2,
           0.0015 + intensity * 0.002

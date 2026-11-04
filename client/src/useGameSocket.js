@@ -41,6 +41,7 @@
     const clockOffsetRef = useRef(0);
     const lastRttRef = useRef(0);
     const processedResultRef = useRef(null);
+    const combosRef = useRef({});
     const pingTimerRef = useRef(null);
 
     const getServerNow = useCallback(
@@ -109,6 +110,7 @@
         setRoomCode(data.code);
 
         if (data.phase === "countdown") {
+          combosRef.current = {};
           setCombos({});
           setCombatEffect(null);
         }
@@ -188,41 +190,47 @@
       if (key) processedResultRef.current = key;
 
       if (result.type === "timeout") {
-        const reset = window.setTimeout(() => setCombos({}), 0);
+        const reset = window.setTimeout(() => {
+          combosRef.current = {};
+          setCombos({});
+        }, 0);
         return () => window.clearTimeout(reset);
       }
 
       if (result.type !== "hit") return;
 
-      const combosTimer = window.setTimeout(() => {
-        setCombos((current) => ({
-          ...current,
-          [result.attackerId]: (current[result.attackerId] || 0) + 1,
-          [result.defenderId]: 0,
-        }));
-      }, 0);
-
       const effectId = key || `${result.attackerId}-${Date.now()}`;
+      let removeTimer;
 
       const showTimer = window.setTimeout(() => {
+        const combo = (combosRef.current[result.attackerId] || 0) + 1;
+        const nextCombos = {
+          ...combosRef.current,
+          [result.attackerId]: combo,
+          [result.defenderId]: 0,
+        };
+
+        combosRef.current = nextCombos;
+        setCombos(nextCombos);
         setCombatEffect({
           id: effectId,
           attackerId: result.attackerId,
           defenderId: result.defenderId,
           damage: result.damage,
+          combo,
+          isFinisher: result.remainingHp === 0,
         });
+
+        removeTimer = window.setTimeout(() => {
+          setCombatEffect((current) =>
+            current?.id === effectId ? null : current
+          );
+        }, 1100);
       }, 0);
 
-      const timer = window.setTimeout(() => {
-        setCombatEffect((current) =>
-          current?.id === effectId ? null : current
-        );
-      }, 1100);
-
       return () => {
-        window.clearTimeout(combosTimer);
         window.clearTimeout(showTimer);
-        window.clearTimeout(timer);
+        window.clearTimeout(removeTimer);
       };
     }, [room?.lastResult]);
 
@@ -309,6 +317,7 @@
       setRoomCode("");
       setBattleNotice("");
       setError("");
+      combosRef.current = {};
       setCombos({});
       setCombatEffect(null);
     }
